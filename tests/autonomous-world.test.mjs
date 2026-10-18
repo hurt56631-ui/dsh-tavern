@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { createAutonomousWorld } from '../tavern-plugin/lib/domain/autonomous-world.js'
 
 function setup(overrides = {}) {
-  const files = new Map()
+  const files = overrides.files || new Map()
   const timers = new Map()
   let time = 1_000_000
   let nextTimer = 0
@@ -12,6 +12,8 @@ function setup(overrides = {}) {
   const world = createAutonomousWorld({
     read: async key => files.get(key),
     write: async (key, value) => { files.set(key, structuredClone(value)) },
+    list: async prefix => [...files.keys()].filter(key => key.startsWith(prefix + '/'))
+      .map(key => ({ name: key.slice(prefix.length + 1), directory: false })),
     loadChat: async () => overrides.chat || chat,
     isBusy: async () => overrides.busy === true,
     publish: () => publications++,
@@ -89,4 +91,88 @@ test('only story and script sessions can be configured', async () => {
   const { world } = setup({ chat: { mode: 'card', cardName: 'card' } })
   await assert.rejects(world.configure('bad', { enabled: true }), /游玩对话/)
   world.stop()
+})
+
+
+test('parses 150 independent NPC records from embedded Chongzhen cast sections', async () => {
+  const roster = Array.from({length: 150}, (_, i) =>
+    '〔虚构〕宫女' + (i + 1) + '｜内廷值守｜负责自己的差事，目标是获得安稳生活'
+  ).join('\n')
+  const chat = {
+    mode: 'story',
+    cardName: '崇祯朝·群像人生穿越',
+    messages: [{role: 'assistant', greeting: true, text: '【当前身份：平民】'}],
+    openingWorldbookSnapshot: { document: {
+      entries: [{ enabled: true, comment: '宫女·各宫差事',
+        content: '【宫女·各宫差事｜本局固定人物档案】\n' + roster }]
+    }}
+  }
+  const env = setup({ chat })
+  await env.world.configure('game-1', { enabled: true })
+  const state = await env.world.tick('game-1', { force: true })
+  assert.equal(state.actors.length, 150)
+  assert.equal(new Set(state.actors.map(a => a.id)).size, 150)
+  assert.equal(state.actors.filter(a => a.lastTick === 1).length, 4)
+  assert.ok(state.actors.every(a => a.goal.includes('安稳生活')))
+  // Imperial business is only a rumor to an unrelated civilian.
+  assert.equal(state.events[0].visibility, 'rumour')
+  const summary = await env.world.context('game-1')
+  assert.match(summary, /传闻/)
+  env.world.stop()
+})
+
+test('NPC plans and short memories survive ticks instead of resetting randomly', async () => {
+  const env = setup()
+  await env.world.configure('game-1', { enabled: true })
+  await env.world.tick('game-1', { force: true })
+  const later = await env.world.tick('game-1', { force: true })
+  const acted = later.actors.filter(a => a.lastTick)
+  assert.ok(acted.length > 4)
+  assert.ok(acted.every(a => Number(a.progress) >= 1))
+  assert.ok(acted.every(a => Array.isArray(a.memory) && a.memory.length <= 4))
+  env.world.stop()
+})
+
+test('restart discovers persisted opted-in worlds without loading UI', async () => {
+  const files = new Map()
+  const first = setup({files})
+  await first.world.configure('saved-session', { enabled: true, intervalMinutes: 5 })
+  first.world.stop()
+  const second = setup({files})
+  const result = await second.world.restore()
+  assert.equal(result.restored, 1)
+  assert.equal(second.timers.size, 1)
+  const repeated = await second.world.restore()
+  assert.equal(repeated.restored, 0)
+  second.time(1_300_000)
+  const advanced = await second.world.tick('saved-session')
+  assert.equal(advanced.tick, 1)
+  second.world.stop()
+})
+
+test('offline time catch-up is bounded and takes one persistent write', async () => {
+  const env = setup()
+  await env.world.configure('game-1', { enabled: true, intervalMinutes: 1 })
+  env.time(1_000_000 + 60_000 * 500)
+  const state = await env.world.tick('game-1')
+  assert.equal(state.tick, 12)
+  assert.equal(state.elapsedGameMinutes, 720)
+  assert.ok(state.events.length <= 80)
+  assert.equal(state.nextAt, 1_000_000 + 60_000 * 501)
+  env.world.stop()
+})
+
+test('only opted-in worlds restore; no new character generated for generic empty card', async () => {
+  const files = new Map()
+  const plain = setup({files,chat:{mode:'story',cardName:'普通人的一天'}})
+  const toggled = await plain.world.configure('disabled-session', { enabled: false })
+  assert.equal(toggled.enabled, false)
+  await plain.world.configure('enabled-session', { enabled: true })
+  let state = await plain.world.tick('enabled-session', { force: true })
+  assert.equal(state.actors.length, 0)
+  assert.equal(state.events.length, 0)
+  plain.world.stop()
+  const resumed = setup({files,chat:{mode:'story',cardName:'普通人的一天'}})
+  assert.equal((await resumed.world.restore()).restored, 1)
+  resumed.world.stop()
 })

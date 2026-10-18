@@ -5,7 +5,8 @@ import { createHash } from 'node:crypto'
 const INTERVALS = new Set([1, 5, 15, 30, 60])
 const GAME_MINUTES = new Set([30, 60, 180, 360, 1440])
 const MAX_EVENTS = 80
-const MAX_ACTORS = 120
+const MAX_ACTORS = 240
+const MAX_CATCH_UP_TICKS = 12
 
 const CHONGZHEN_CAST = [
   ['周皇后', 'palace', '照看内廷与皇室'], ['田皇贵妃', 'palace', '照料宫务与个人生活'],
@@ -32,6 +33,42 @@ const MESSAGES = {
   other: '收到消息：{name}正在{activity}，并未要求你立刻作出决定。'
 }
 
+
+const CAST_LINE = /^〔(史实|史料有限|虚构)〕([^｜\n]{1,40})｜([^｜\n]{1,110})(?:｜([^\n]{1,220}))?$/gm
+
+// Only designated cast-index sections are parsed as NPC definitions. Do not
+// treat lorebook trigger keywords or regular prose as people.
+function castFromWorldbook(chat) {
+  const document = chat?.openingWorldbookSnapshot?.document
+  const raw = document?.data?.character_book || document?.character_book || document
+  const entries = rows(raw?.entries)
+  const result = []
+  for (const entry of entries.slice(0, 100)) {
+    if (!entry || entry.disable === true || entry.enabled === false) continue
+    const heading = text(entry.comment || entry.name)
+    const content = text(entry.content)
+    if (!(heading.includes('固定人物档案') || /^【[^\n]{0,90}固定人物档案】/.test(content)) || content.length > 25_000) continue
+    const role = /皇家|嫔|女官|宫女|内侍|后妃/.test(heading) ? 'palace'
+      : /起事|农民军/.test(heading) ? 'rebel'
+      : /军事|明军|辽东/.test(heading) ? 'army'
+      : /阁臣|六部|京官|衙门/.test(heading) ? 'court'
+      : /清廷|边境/.test(heading) ? 'army' : 'civilian'
+    CAST_LINE.lastIndex = 0
+    for (const match of content.matchAll(CAST_LINE)) {
+      const [, origin, name, identity, description = ''] = match
+      if (name === '朱由检' || name === '崇祯皇帝') continue
+      result.push({ name, identity, role, goal: description || identity, origin })
+    }
+  }
+  return result.slice(0, MAX_ACTORS)
+}
+
+function isEmperorPlayer(chat) {
+  const greeting = rows(chat?.messages).find(row => row?.greeting === true)
+  const opening = text(greeting?.sourceText || greeting?.text || chat?.openingText)
+  return /【当前身份[：:][^】]{0,25}(崇祯|皇帝|朱由检)/.test(opening)
+}
+
 function rows(value) {
   return Array.isArray(value) ? value : value && typeof value === 'object' ? Object.values(value) : []
 }
@@ -54,14 +91,16 @@ function initialActors(chat) {
     if (!name || found.has(name) || found.size >= MAX_ACTORS) return
     role = role || category(name, identity)
     found.set(name, { id: createHash('sha256').update(name).digest('hex').slice(0, 16),
-      name, role, goal: limited(goal || identity || '料理日常事务'), lastAction: '', lastTick: 0, progress: 0 })
+      name, role, goal: limited(goal || identity || '料理日常事务', 180),
+      lastAction: '', lastTick: 0, progress: 0, planStep: 0, memory: [] })
   }
   for (const ch of rows(chat?.ledger?.npcs)) add(ch?.name, ch?.title || ch?.personality, null, ch?.desc)
   for (const ch of rows(chat?.characterDesignDocument?.characters)) {
     add(ch?.name, ch?.design?.identity || ch?.identity, null, ch?.design?.narrativeRole || ch?.narrativeRole)
   }
+  for (const member of castFromWorldbook(chat)) add(member.name, member.identity, member.role, member.goal)
   const isChongzhen = /崇祯|大明末年|明末/.test(text(chat?.cardName))
-  if (isChongzhen) {
+  if (isChongzhen && found.size < 25) {
     for (const [name, role, goal] of CHONGZHEN_CAST) add(name, goal, role, goal)
   }
   return [...found.values()]
@@ -70,6 +109,7 @@ function cleanState(raw) {
   const state = raw && raw.version === 1 && typeof raw === 'object' ? clone(raw) : {}
   return {
     version: 1, enabled: state.enabled === true,
+    sessionId: limited(state.sessionId, 256),
     intervalMinutes: INTERVALS.has(state.intervalMinutes) ? state.intervalMinutes : 15,
     gameMinutesPerTick: GAME_MINUTES.has(state.gameMinutesPerTick) ? state.gameMinutesPerTick : 60,
     nextAt: Number.isFinite(state.nextAt) ? state.nextAt : 0,
@@ -101,23 +141,33 @@ function stepWorld(state, chat, timestamp) {
   next.nextAt = timestamp + next.intervalMinutes * 60_000
   const len = next.actors.length
   const acted = []
-  for (let i = 0; i < Math.min(3, len); i++) {
-    const actor = next.actors[(next.tick - 1 + i * 13) % len]
+  for (let i = 0; i < Math.min(4, len); i++) {
+    // Stable IDs and round-robin scheduling: no per-NPC model calls, no
+    // special preference for the first character in an enormous cast.
+    const actor = next.actors[(next.tick * 7 - 7 + i) % len]
     const actions = ACTIONS[actor.role] || ACTIONS.other
     actor.progress = (Number(actor.progress) || 0) + 1
-    actor.lastAction = actions[(actor.progress - 1) % actions.length]
+    actor.planStep = ((Number(actor.planStep) || 0) % actions.length) + 1
+    actor.lastAction = actions[actor.planStep - 1]
     actor.lastTick = next.tick
+    actor.memory = rows(actor.memory).slice(-3).concat([{
+      tick: next.tick, action: actor.lastAction, intent: actor.goal
+    }])
     acted.push(actor)
   }
   // Not every off-screen action is a letter. Bound inbox pressure even if
   // the server runs all night. The player can choose whether to answer.
   if (acted.length && next.tick % 2 === 1) {
-    const actor = acted[0]
+    // An ordinary outsider cannot receive an imperial consort's private
+    // audience or a rebel's secret military planning as a direct message.
+    const actor = acted.find(person => isEmperorPlayer(chat) || person.role === 'civilian' || person.role === 'other')
+      || acted.find(person => person.role !== 'palace') || acted[0]
     next.events.push({
       id: 'tick-' + next.tick + '-' + actor.id, tick: next.tick,
       actorId: actor.id, actor: actor.name, role: actor.role,
       gameMinutes: next.elapsedGameMinutes, createdAt: timestamp,
       text: eventMessage(actor), kind: actor.role === 'civilian' || actor.role === 'other' ? 'message' : 'report',
+      visibility: isEmperorPlayer(chat) ? 'court' : 'rumour',
       provisional: true, readAt: null
     })
     next.events = next.events.slice(-MAX_EVENTS)
@@ -132,12 +182,13 @@ function contextText(state) {
   return '【活世界·后台时间流（独立于玩家行动）】\n' +
     '玩家尚未回应以下消息。它们是角色主动活动形成的报告或传闻，不是玩家的决定，也不能视为已核定的战果、官职、财政变化。' +
     '不得代替玩家答应请求；应尊重既有正文和世界书，发生冲突时以正文确定的事实为准。\n' +
-    '后台已经模拟流逝 ' + state.elapsedGameMinutes + ' 游戏分钟，累计 ' + state.tick + ' 次世界步进。\n' +
+    '后台已经模拟流逝 ' + state.elapsedGameMinutes + ' 游戏分钟，累计 ' + state.tick + ' 次世界步进。' +
+    '这些信息属于尚待核实的幕后活动，不得直接宣布成为历史事实。\n' +
     recent.slice(0, 3500)
 }
 
 export function createAutonomousWorld({
-  read, write, loadChat, isBusy = async () => false, publish = () => {},
+  read, write, list = async () => [], loadChat, isBusy = async () => false, publish = () => {},
   now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout, logger = console
 }) {
   const timers = new Map()
@@ -166,7 +217,8 @@ export function createAutonomousWorld({
       timers.delete(id)
       void tick(id).catch(error => {
         logger.warn?.('dsh-tavern: 活世界步进失败', error)
-        void status(id).catch(() => {})
+        // A corrupt save or temporary I/O failure must not spin at 100ms.
+        void readState(id).then(state => arm(id, state, now() + 60_000)).catch(() => {})
       })
     }, delay)
     timer.unref?.()
@@ -194,6 +246,7 @@ export function createAutonomousWorld({
       if (Object.hasOwn(patch, 'enabled')) state.enabled = patch.enabled
       if (Object.hasOwn(patch, 'intervalMinutes')) state.intervalMinutes = patch.intervalMinutes
       if (Object.hasOwn(patch, 'gameMinutesPerTick')) state.gameMinutesPerTick = patch.gameMinutesPerTick
+      state.sessionId = id
       if (state.enabled && (!wasEnabled || Object.hasOwn(patch, 'intervalMinutes'))) state.nextAt = now() + state.intervalMinutes * 60_000
       if (!state.enabled) state.nextAt = 0
       await write(key(id), state)
@@ -209,7 +262,14 @@ export function createAutonomousWorld({
       if (!options.force && now() < state.nextAt) { arm(id, state); return { ...report(state), skipped: 'not_due' } }
       if (await isBusy(id)) { arm(id, state, now() + 30_000); return { ...report(state), skipped: 'game_busy' } }
       const chat = await activeChat(id)
-      const next = stepWorld(state, chat, now())
+      // Catch up a bounded number of missed intervals after restart or
+      // server sleep. Never issue an unbounded burst of background work.
+      const intervalMs = state.intervalMinutes * 60_000
+      const behind = options.force ? 0 : Math.max(0, now() - state.nextAt)
+      const count = options.force ? 1 : Math.min(MAX_CATCH_UP_TICKS, 1 + Math.floor(behind / intervalMs))
+      let next = state
+      for (let i = 0; i < count; i++) next = stepWorld(next, chat, now())
+      next.sessionId = id
       await write(key(id), next)
       arm(id, next)
       publish(id)
@@ -231,9 +291,26 @@ export function createAutonomousWorld({
     const state = await readState(id)
     return contextText(state)
   }
+  async function restore() {
+    if (disposed) return { restored: 0 }
+    const names = await list('autonomous-world')
+    let restored = 0
+    for (const file of rows(names).filter(item => item && item.directory !== true && /^[a-f0-9]{64}\.json$/.test(item.name)).slice(0, 500)) {
+      if (disposed) break
+      try {
+        const state = cleanState(await read('autonomous-world/' + file.name))
+        if (!state.enabled || !state.sessionId || key(state.sessionId) !== 'autonomous-world/' + file.name) continue
+        await activeChat(state.sessionId)
+        // arm() schedules a single tick when overdue; tick() performs capped
+        // catch-up, without rewriting the canonical chat history.
+        if (!timers.has(state.sessionId)) { arm(state.sessionId, state); restored++ }
+      } catch (error) { logger.warn?.('dsh-tavern: 跳过无法恢复的活世界存档', file.name, error) }
+    }
+    return { restored }
+  }
   function stop() {
     disposed = true
     for (const id of timers.keys()) clear(id)
   }
-  return Object.freeze({ status, configure, tick, markRead, context, stop })
+  return Object.freeze({ status, configure, tick, markRead, context, restore, stop })
 }

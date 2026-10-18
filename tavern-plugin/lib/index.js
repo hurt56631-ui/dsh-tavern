@@ -632,6 +632,7 @@ export async function apply(ctx) {
   const autonomousWorld = createAutonomousWorld({
     read: relative => profileData.readJson(relative),
     write: (relative, value) => profileData.writeJson(relative, value),
+    list: relative => profileData.list(relative),
     loadChat: sessionId => chatForSession(sessionId),
     isBusy: async sessionId => (await sessionActivity(sessionId))?.busy === true ||
       agentRegistry.get(sessionId)?.phase?.kind === 'running',
@@ -640,6 +641,16 @@ export async function apply(ctx) {
     })
   })
   ctx.effect(() => () => autonomousWorld.stop(), 'dsh-tavern: autonomous world')
+  // Restore opt-in game schedulers even if the player never opens their page.
+  // Startup migrations/session loading get time to settle before indexing saves.
+  ctx.effect(() => {
+    const timer = setTimeout(() => {
+      void autonomousWorld.restore().catch(error =>
+        console.warn('dsh-tavern: 活世界恢复失败', str(error?.message || error)))
+    }, 4000)
+    timer.unref?.()
+    return () => clearTimeout(timer)
+  }, 'dsh-tavern: autonomous world resume')
   const cardPreparation = createCardPreparation({ id: function () { return uid('card') }, now: Date.now })
 
   // ---------- 模型调用 ----------
