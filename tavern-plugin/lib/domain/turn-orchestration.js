@@ -439,6 +439,8 @@ export function createTurnOrchestrator(options) {
     // Seam to the plugin layer; it never throws and drops a failing plugin's part.
     const pluginSections = typeof options.pluginTurnContext === 'function'
       ? await options.pluginTurnContext({ gameId: input.sessionId, turn, input: userText }).catch(() => []) : []
+    const autonomousContext = typeof options.autonomousWorldContext === 'function'
+      ? await options.autonomousWorldContext(input.sessionId).catch(() => '') : ''
     const source = frameSource(chat, card, foregroundOperation)
     source.card.systemPromptText = plan.systemPromptText
     source.worldBook.scriptPromptRefs = Array.isArray(scriptWorldBook && scriptWorldBook.refs) ? clone(scriptWorldBook.refs) : []
@@ -453,7 +455,9 @@ export function createTurnOrchestrator(options) {
       turn,
       inputs: foregroundFrameInputs(plan, userText, runtimeUserText,
         Object.hasOwn(input, 'runtimePresetSnapshot') ? input.runtimePresetSnapshot
-          : resolveRuntimePresetMacros(chat.runtimePresetSnapshot, { charName: card.name, macroState: chat.macroState }).snapshot, chat, pluginSections),
+          : resolveRuntimePresetMacros(chat.runtimePresetSnapshot, { charName: card.name, macroState: chat.macroState }).snapshot, chat, pluginSections).concat(
+            autonomousContext ? [{ kind: 'foreground.current-state', required: false,
+              text: autonomousContext, source: { stage: 'autonomous-world' } }] : []),
       source: { ...source, ...(sceneWorldbook ? { sceneWorldbook } : {}) }
     }
     let frame = frameBuilder.build(frameInput)

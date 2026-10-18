@@ -1,0 +1,41 @@
+name: Autonomous world regression
+on:
+  push:
+    branches: [feat/autonomous-world-mvp]
+    paths:
+      - .github/workflows/autonomous-world.yml
+      - tavern-plugin/lib/domain/autonomous-world.js
+      - tavern-plugin/lib/domain/turn-orchestration.js
+      - tavern-plugin/lib/index.js
+      - tavern-plugin/lib/client.js
+      - tavern-plugin/src/client/features/autonomous-world-panel.js
+      - tavern-plugin/src/client/features/play-controls.js
+      - tests/autonomous-world.test.mjs
+  pull_request:
+    paths:
+      - .github/workflows/autonomous-world.yml
+      - tavern-plugin/lib/domain/autonomous-world.js
+      - tavern-plugin/lib/domain/turn-orchestration.js
+      - tavern-plugin/lib/index.js
+      - tavern-plugin/lib/client.js
+      - tavern-plugin/src/client/features/autonomous-world-panel.js
+      - tavern-plugin/src/client/features/play-controls.js
+      - tests/autonomous-world.test.mjs
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validation:
+    name: Node tests and browser bundle consistency
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check tavern-plugin/lib/domain/autonomous-world.js
+      - run: node --check tavern-plugin/lib/domain/turn-orchestration.js
+      - run: node --check tavern-plugin/lib/index.js
+      - run: node --test tests/autonomous-world.test.mjs
+      - run: node bin/build-tavern-client.mjs --check

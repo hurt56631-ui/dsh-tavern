@@ -145,6 +145,7 @@
             );
         }
 
+			// @include features/autonomous-world-panel.js
 			function TavernStatusPanel(props) {
 				const [designRemoving, setDesignRemoving] = React.useState("");
             const askConfirm = useTavernConfirm(props.sessionId || props.scope?.sessionId);
@@ -328,6 +329,7 @@
 						cardUpdateError ? h("p", { className: "dsh-card-error", role: "alert" }, "未应用更新：" + cardUpdateError) : null
 					) : null,
 					h(TavernCardAppDock, { sessionId: props.sessionId }),
+					h(TavernAutonomousWorldPanel, { sessionId: props.sessionId }),
 					view.settleStatus === "error" ? h("div", { className: "dsh-card-error" },
 						h("div", null, view.settleError || "后台结算失败，请重试。"),
 						h("button", { className: "dsh-tavern-btn", disabled: settlementRetryBusy, onClick: retrySettlement }, settlementRetryBusy ? "重试中…" : "重试后台结算")

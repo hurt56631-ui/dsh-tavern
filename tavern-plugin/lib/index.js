@@ -1,3 +1,4 @@
+import { createAutonomousWorld } from './domain/autonomous-world.js'
 import { upgradeReferences, upgradedAnchor } from './domain/session-upgrade-references.js'
 import { producerSource } from './domain/message-source.js'
 import { sceneSaveKeyMap } from './domain/scene-save.js'
@@ -626,6 +627,30 @@ export async function apply(ctx) {
   const settlementJobs = createSettlementJobs({ run: runSettlementCycle, onSettled: onSettlementSettled })
   const scriptContinuity = createScriptContinuity()
   const storyTimeline = createStoryTimeline({ id: uid, now: Date.now })
+  // Model-free, opt-in world scheduler. Sidecar files do not alter the
+  // canonical story, revisions, or player-authored input.
+  const autonomousWorld = createAutonomousWorld({
+    read: relative => profileData.readJson(relative),
+    write: (relative, value) => profileData.writeJson(relative, value),
+    list: relative => profileData.list(relative),
+    loadChat: sessionId => chatForSession(sessionId),
+    isBusy: async sessionId => (await sessionActivity(sessionId))?.busy === true ||
+      agentRegistry.get(sessionId)?.phase?.kind === 'running',
+    publish: sessionId => sessionSignals.publish(sessionId, {
+      kind: 'autonomous-world', version: Date.now() + ':' + Math.random().toString(36).slice(2)
+    })
+  })
+  ctx.effect(() => () => autonomousWorld.stop(), 'dsh-tavern: autonomous world')
+  // Restore opt-in game schedulers even if the player never opens their page.
+  // Startup migrations/session loading get time to settle before indexing saves.
+  ctx.effect(() => {
+    const timer = setTimeout(() => {
+      void autonomousWorld.restore().catch(error =>
+        console.warn('dsh-tavern: 活世界恢复失败', str(error?.message || error)))
+    }, 4000)
+    timer.unref?.()
+    return () => clearTimeout(timer)
+  }, 'dsh-tavern: autonomous world resume')
   const cardPreparation = createCardPreparation({ id: function () { return uid('card') }, now: Date.now })
 
   // ---------- 模型调用 ----------
@@ -4200,6 +4225,7 @@ export async function apply(ctx) {
       return renderCardText(text, { name: chat.cardName }, chat.macroState)
     },
     pluginTurnContext: pluginApi.turnContext,
+    autonomousWorldContext: sessionId => autonomousWorld.context(sessionId),
     projectUserTemplate: async ({chat,text}) => {
       const global = await readPromptTemplateGlobalVariables()
       const result = await fullTemplateRuntime.forSession(chat.sessionId).renderInput(text, {userName:chat.macroState?.userName || '你',scopes:{global,local:chat.variables || {},initial:chat.promptTemplateInitialVariables || {},message:lastTavernHelperVariables(chat.messages) || {}}})
@@ -4647,6 +4673,10 @@ export async function apply(ctx) {
       case 'getBackgroundModelReasoning': return { reasoning: await readBackgroundModelReasoning(llm, args) }
       case 'getDisplayPreferences': { const settings = await readTavernSettings(); return { hideContextAndReasoning: settings.hideContextAndReasoning } }
       case 'getCandidatePreferences': return { candidateDismissMode: (await readTavernSettings()).candidateDismissMode }
+      case 'getAutonomousWorld': return await autonomousWorld.status(str(args?.sessionId))
+      case 'configureAutonomousWorld': return await autonomousWorld.configure(str(args?.sessionId), args?.patch || {})
+      case 'tickAutonomousWorld': return await autonomousWorld.tick(str(args?.sessionId), { force: true })
+      case 'readAutonomousWorld': return await autonomousWorld.markRead(str(args?.sessionId))
       case 'getTavernSettings': return { settings: await readTavernSettings(), modelCatalog: await tavernModelCatalog(), releaseCapabilities: TAVERN_RELEASE_CAPABILITIES }
       case 'getSceneImageSettings': {
         const settings = await enabledSceneIllustrations().settings(args?.provider)
