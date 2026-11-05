@@ -190,6 +190,7 @@ function createConversationSettingsModule({
                 h("section", { className: "dsh-local-section" }, h("h3", null, "游玩"),
                     h(TavernLocalPlayerName, { key: owner + ":name", sessionId: owner }),
                     h(TavernConversationPreset, { key: owner + ":preset", sessionId: owner }),
+                    h(TavernTheaterReadingSetting, { key: owner + ":theater", sessionId: owner }),
                     h(UserPreferenceProfileTab, { key: owner + ":profile", scope: { sessionId: owner }, conversationOnly: true })),
                 h(TavernConversationBackgroundModel, { key: owner, sessionId: owner }),
                 h(TavernBodyGenerationSettings, { key: owner + ":body-generation", sessionId: owner }),
