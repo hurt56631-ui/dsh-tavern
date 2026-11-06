@@ -97,6 +97,9 @@ export function createLivingWorldController({ chats, timeline, isBusy }) {
       if (world.backlog) throw new Error('请先结算未完成的世界事件')
       if (!world.people || !Object.hasOwn(world.people,npcId) || npcId === world.playerId)
         throw new Error('找不到这个 NPC')
+      const player = world.people[world.playerId], npc = world.people[npcId]
+      if (!player || player.transit || npc.transit || player.locationId !== npc.locationId)
+        throw new Error('必须当面向 NPC 下达新的日程')
       if (goal === 'wander' && !Object.keys(world.locations?.[world.people[npcId].locationId]?.links || {}).length)
         throw new Error('尚未配置地点之间的路线，暂时无法游历')
       const id = String(actionId || '')
