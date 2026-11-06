@@ -56,6 +56,7 @@ window.__ModuleLoader__.load({
 		// @include-shared canvas-empty.cjs
 		// @include asset-pack-ui.js
 		// @include figure-color-contrast.js
+// @include avatar-quick-edit.js
 
 		function isPlayMode(mode) {
 			return mode === "story" || mode === "script";
