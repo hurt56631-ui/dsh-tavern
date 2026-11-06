@@ -35,7 +35,7 @@ export function projectLivingCases(world, viewerId, limit = 12) {
   const rows = Object.values(world.cases).filter(c =>
     c && CASE_STATUSES.has(c.status) &&
     (c.creatorId === viewerId || c.investigatorId === viewerId))
-  return rows.slice(-Math.max(1,Math.min(25,limit))).map(record => {
+  return rows.slice(-Math.max(1,Math.min(80,limit))).map(record => {
     const investigator = record.investigatorId === viewerId
     return {
       id:record.id, kind:record.kind, title:record.title,
