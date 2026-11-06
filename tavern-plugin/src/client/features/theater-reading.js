@@ -145,6 +145,25 @@ function installTavernTheaterStyles(doc) {
 .dsh-tavern-theater-setting-head > span { display: grid; gap: 3px; }
 .dsh-tavern-theater-setting-head small { font-size: 12px; font-weight: 400; color: var(--fork-ink-2, inherit); }
 .dsh-tavern-theater-setting p { margin: 0; }
+/* Transcript avatars preserve the original preview click; this separate
+   action opens the official asset-pack figure editor, with no upload fork. */
+.fork-bubble-head .fork-bubble-avatar-edit {
+  display: inline-flex; flex: none; align-items: center; justify-content: center;
+  margin: 0 0 0 6px; padding: 2px 5px;
+  min-width: 0; min-height: 24px; border: 0; border-radius: 6px;
+  background: transparent; color: var(--fork-ink-2, currentColor);
+  font-size: 11px; font-weight: 500; line-height: 1.4; white-space: nowrap;
+  cursor: pointer; opacity: .58;
+}
+.fork-bubble-head .fork-bubble-avatar-edit:is(:hover, :focus-visible) { opacity: 1; background: color-mix(in srgb, currentColor 7%, transparent); }
+.fork-bubble-head .fork-bubble-avatar-edit:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+  .fork-bubble-head .fork-bubble-avatar-edit { opacity: 0; }
+  .fork-bubble:is(:hover, :focus-within) .fork-bubble-avatar-edit { opacity: .68; }
+}
+@media (hover: none) {
+  .fork-bubble-head .fork-bubble-avatar-edit { opacity: .75; }
+}
 .dsh-tavern-assistant[data-theater-mode="screenplay"] .fork-bubbles > .fork-bubble { margin-block: 12px; }
 .dsh-tavern-assistant[data-theater-mode="screenplay"] .fork-bubble-head { font-weight: 700; }
 .dsh-tavern-assistant[data-theater-mode="screenplay"] .fork-bubble-text { line-height: 1.7; }
