@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { rebaseLivingWorld } from './living-world.js'
 
 function clone(value) {
   return value === undefined ? undefined : structuredClone(value)
@@ -81,6 +82,9 @@ export function forkConversationChat(source, options = {}) {
     operations: {},
     updatedAt: now
   }
+  // The historical Chat carries the correct world snapshot for the chosen
+  // fork turn. Change only its branch ownership, never inherit dedupe keys.
+  if (chat.livingWorld) chat.livingWorld = rebaseLivingWorld(chat.livingWorld, chat.timeline.branchId)
   return chat
 }
 
