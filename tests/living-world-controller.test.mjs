@@ -4,10 +4,10 @@ import { createLivingWorld, livingWorldStatus, livingWorldFrameInputs } from '..
 import { createStoryTimeline } from '../tavern-plugin/lib/domain/story-timeline.js'
 import { createLivingWorldController } from '../tavern-plugin/lib/domain/living-world-controller.js'
 
-function setup() {
+function setup(ledger) {
   let id = 0
   let chat = {id:'chat-1',sessionId:'session-1',mode:'story',messages:[],
-    macroState:{userName:'皇帝'},ledger:{location:'乾清宫',npcs:[{name:'王体乾'},{name:'魏忠贤'}]}}
+    macroState:{userName:'皇帝'},ledger: ledger || {location:'乾清宫',npcs:[{name:'王体乾'},{name:'魏忠贤'}]}}
   const timeline = createStoryTimeline({id:prefix=>prefix+'-'+(++id),now:()=>100})
   let busy = false
   const chats = {
@@ -19,7 +19,7 @@ function setup() {
     }
   }
   const controller = createLivingWorldController({chats,timeline,isBusy:()=>busy})
-  return {controller,timeline,get:()=>chat,setBusy:value=>{busy=value}}
+  return {controller,timeline,get:()=>chat,setChat:fn=>{chat=fn(chat)},setBusy:value=>{busy=value}}
 }
 test('opt-in world starts from existing ledger, no invented NPC goals and no extra world time',async()=>{
   const fixture=setup()
@@ -76,4 +76,33 @@ test('per-player frame does not expose other NPC secret witness',()=>{
   assert.equal(view.events.length,0)
   assert.equal(view.timelineRevision,4)
   assert.equal('knowledge' in view,false)
+})
+
+
+test('NPCs without a confirmed location do not teleport next to the player',async()=>{
+  const fixture=setup({location:'乾清宫',npcs:[
+    {name:'王体乾',location:'乾清宫'},{name:'魏忠贤',location:'东厂'},
+    {name:'江南商人'},{name:'随行侍卫',follow:true}
+  ]})
+  const view=await fixture.controller.initialize({sessionId:'session-1',expectedTimelineRevision:0})
+  assert.deepEqual(view.nearby.map(p=>p.name),['王体乾','随行侍卫'])
+  assert.equal(fixture.get().livingWorld.people.npc_2.locationId,'loc_1')
+  assert.equal(fixture.get().livingWorld.people.npc_3.locationId,'unknown')
+  assert.equal(fixture.get().livingWorld.people.npc_4.locationId,'scene')
+})
+
+test('explicit reset clears suspended facts but preserves the story ledger',async()=>{
+  const f=setup()
+  const start=await f.controller.initialize({sessionId:'session-1',expectedTimelineRevision:0})
+  const old=f.get().ledger.npcs.map(x=>x.name)
+  f.setChat(chat=>({...chat,livingWorld:{...chat.livingWorld,suspended:true}}))
+  await assert.rejects(f.controller.advance({sessionId:'session-1',
+    expectedTimelineRevision:start.timelineRevision,minutes:1440,actionId:'blocked'}),/暂停|修改/)
+  const rebuilt=await f.controller.reset({sessionId:'session-1',expectedTimelineRevision:start.timelineRevision})
+  assert.equal(rebuilt.enabled,true)
+  assert.equal(rebuilt.minute,0)
+  assert.equal(rebuilt.suspended,false)
+  assert.deepEqual(f.get().ledger.npcs.map(x=>x.name),old)
+  await assert.rejects(f.controller.reset({sessionId:'session-1',
+    expectedTimelineRevision:rebuilt.timelineRevision}),/并未暂停/)
 })
