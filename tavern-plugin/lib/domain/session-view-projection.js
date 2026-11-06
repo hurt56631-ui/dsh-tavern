@@ -12,6 +12,7 @@ import { composeTavernRegexScripts } from './card-extension-reading.js'
 import { applyRegexOverrides } from './regex-manager.js'
 import { projectCharacterDesignDocument } from './character-design-document.js'
 import { readLedger } from './story-ledger.js'
+import { livingWorldStatus } from './living-world.js'
 import { TAVERN_COMPATIBILITY_CAPABILITIES } from './tavern-compatibility-diagnostics.js'
 import { assistantResultForTurn } from './session-turn-result.js'
 import { forkTurnsByMessageId as forkTargetsFromSession } from './conversation-fork-targets.js'
@@ -175,6 +176,7 @@ export function createSessionViewProjection({
       styleReference: latestStyleReference(chat),
       styleReferenceEnabled: chat.backgroundTasks?.styleReference === true && (chat.mode || 'story') === 'story',
       ledger: readLedger(chat.ledger),
+      livingWorld: livingWorldStatus(chat.livingWorld, chat.timeline?.revision),
       ledgerTask: projectLedgerTask(chat),
       characterDesigns: projectCharacterDesignDocument(chat.characterDesignDocument),
       characterDesignTask: projectCharacterDesignTask(chat),
@@ -447,6 +449,7 @@ export function createSessionViewProjection({
       guides: Array.isArray(chat.guides) ? chat.guides : [],
       // Header state a background task rewrites without touching any message.
       ledger: readLedger(chat.ledger),
+      livingWorld: livingWorldStatus(chat.livingWorld, chat.timeline?.revision),
       ledgerTask: projectLedgerTask(chat),
       characterDesigns: projectCharacterDesignDocument(chat.characterDesignDocument),
       characterDesignTask: projectCharacterDesignTask(chat),
