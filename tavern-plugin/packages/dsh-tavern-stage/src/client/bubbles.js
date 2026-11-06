@@ -357,13 +357,22 @@ function BubbleAvatar(props) {
 function BubbleAvatarEditShortcut(props) {
     if (!props.sessionId) return null;
     const h = React.createElement;
-    const target = bubbleAvatarEditorTarget(props.character);
-    const label = target ? '更换' + props.name + '的头像' : '为' + props.name + '添加人物与头像';
+    const ref = props.character?.ref;
+    const bound = typeof ref?.packId === 'string' && !!ref.packId
+        && typeof ref?.figureId === 'string' && !!ref.figureId;
+    const label = bound ? '更换' + props.name + '的头像' : '为' + props.name + '添加人物与头像';
     return h('button', {
         type: 'button', className: 'fork-bubble-avatar-edit',
         'aria-label': label, title: label,
-        onClick: () => { void openBubbleAvatarEditor(props.sessionId, props.character); }
-    }, target ? '✎ 头像' : '＋ 头像');
+        onClick: () => {
+            // The stage display is an optional client bundle; dispatch a
+            // scoped intent instead of importing the core asset manager.
+            window.dispatchEvent(new CustomEvent('dsh-tavern:edit-figure-avatar', {
+                detail: { sessionId: props.sessionId, alias: props.character?.alias || '',
+                    ref: bound ? { packId: ref.packId, figureId: ref.figureId } : null }
+            }));
+        }
+    }, bound ? '✎ 头像' : '＋ 头像');
 }
 
 function BubbleRow(props) {
