@@ -16,6 +16,7 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
     const canSeed = Array.isArray(view.ledger?.npcs) && view.ledger.npcs.some(row=>row?.name?.trim());
     const npcs = Array.isArray(world.people) ? world.people : [];
     const npc = npcs.find(item=>item.id===selectedNpc) || npcs[0] || null;
+    const actorNames = new Map([["player","你"], ...npcs.map(item=>[item.id,item.name])]);
     const labels = {idle:"待命",work:"工作",socialize:"社交",wander:"游历"};
     const eventLabel = {"npc.worked":"工作","npc.rested":"休息","npc.socialized":"交往",
         "npc.goal.changed":"调整日程","travel.started":"出发","travel.arrived":"抵达",
@@ -128,7 +129,8 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
                         h("strong",null,"已知事件"),
                         h("ul",null,world.events.slice(-6).reverse().map(item=>
                             h("li",{key:item.id},"第 "+Math.floor(item.at/1440)+" 天 · "+
-                                (eventLabel[item.kind]||"事件")+" · "+(item.actorIds||[]).join("、"))))) : null
+                                (eventLabel[item.kind]||"事件")+" · "+
+                                (item.actorIds||[]).map(id=>actorNames.get(id)||id).join("、"))))) : null
                 ),
             notice?h("p",{role:"status"},notice):null,
             error?h("p",{role:"alert"},error):null
