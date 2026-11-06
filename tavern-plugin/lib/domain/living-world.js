@@ -702,12 +702,15 @@ export function livingWorldStatus(source, timelineRevision) {
     enabled: true, worldId: source.worldId, branchId: source.branchId,
     revision: source.revision, timelineRevision: Number(timelineRevision) || 0,
     minute: source.minute, backlog: source.backlog === true, suspended: source.suspended === true,
+    playerAdultConfirmed: Number.isInteger(source.people[playerId].verifiedAge) &&
+      source.people[playerId].verifiedAge >= 18,
     people: Object.values(source.people).filter(p => p.id !== playerId).map(p => {
       // The roster is already player-known from the ledger, but live remote
       // destinations, covert travel and unseen goal changes are NOT.
       const present = !source.people[playerId].transit && !p.transit &&
         p.locationId === source.people[playerId].locationId
       return { id:p.id, name:p.name, goal:present ? p.goal : null,
+        adultConfirmed:present && Number.isInteger(p.verifiedAge) && p.verifiedAge>=18,
         locationId:present ? p.locationId : null, transit:null }
     }),
     locations: Object.values(source.locations).filter(loc =>
