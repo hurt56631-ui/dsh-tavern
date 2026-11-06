@@ -32,6 +32,9 @@ function person(world, id) {
 }
 function nearby(world, actorId) {
   const actor = person(world, actorId)
+  // Transit is not a location. Nobody in the departure town can 'talk'
+  // with a traveller until the arrival task has actually been settled.
+  if (!actor.alive || actor.transit) return []
   return Object.values(world.people).filter(other =>
     other.id !== actorId && other.alive && !other.transit && other.locationId === actor.locationId)
     .sort((a, b) => a.id.localeCompare(b.id))
@@ -106,7 +109,7 @@ function routeMinutes(world, from, to) {
 }
 function needsQuiet(world) {
   return world.pending.some(action => action.dueAt <= world.minute)
-    || Object.values(world.people).some(actor => actor.alive && actor.nextActionAt <= world.minute)
+    || Object.values(world.people).some(actor => actor.id !== world.playerId && actor.alive && actor.nextActionAt <= world.minute)
 }
 function knowledgeOf(world, personId, factId) {
   const knowledge = world.knowledge[personId]
@@ -305,7 +308,7 @@ function firstDue(world, through) {
       choice = { kind: 'job', key: '0' + job.id, at: job.dueAt, id: job.id }
   }
   for (const actor of Object.values(world.people)) {
-    if (!actor.alive || actor.nextActionAt > through) continue
+    if (actor.id === world.playerId || !actor.alive || actor.nextActionAt > through) continue
     const key = '1' + actor.id
     if (!choice || actor.nextActionAt < choice.at ||
         (actor.nextActionAt === choice.at && key < choice.key))
