@@ -204,7 +204,11 @@ export function commandLivingWorld(source, input) {
     const factId = requireId(input.factId, 'factId')
     const text = String(input.text || '').trim()
     if (!text || text.length > 240 || Object.hasOwn(world.facts, factId)) fail('Invalid or duplicate fact')
-    world.facts[factId] = { id: factId, text, createdAt: at, sourceId: actor.id }
+    // A factual claim is private by default. Only an explicitly declared
+    // public fact can circulate through automatic social encounters.
+    const visibility = input.visibility === undefined ? 'private' : input.visibility
+    if (!['private','public'].includes(visibility)) fail('Invalid fact visibility')
+    world.facts[factId] = { id: factId, text, createdAt: at, sourceId: actor.id, visibility }
     const eventId = stamp(world, { kind: 'fact.witnessed', actorIds: [actor.id],
       locationId: actor.locationId, visibleTo: [actor.id], factIds: [factId] })
     world.knowledge[actor.id][factId] = { status: 'known', learnedAt: at, fromId: actor.id, eventId }
@@ -225,6 +229,22 @@ export function commandLivingWorld(source, input) {
       stamp(world, { kind: 'letter.sent', actorIds: [actor.id], locationId: actor.locationId,
         visibleTo: [actor.id], factIds })
     }
+  } else if (input.type === 'route') {
+    // Explicit road building is a player's world-edit command, not something
+    // a random NPC can invent when wandering.
+    if (actor.id !== world.playerId) fail('Only the player may confirm a route')
+    const from = requireId(input.fromLocationId, 'fromLocationId')
+    const to = requireId(input.toLocationId, 'toLocationId')
+    const duration = integer(input.minutes, 'travelMinutes', 30, DAY * 30)
+    if (!Object.hasOwn(world.locations, from) || !Object.hasOwn(world.locations, to) ||
+        from === to || from.startsWith('unknown_') || to.startsWith('unknown_') ||
+        from === 'unknown' || to === 'unknown') fail('Route must connect two confirmed, distinct locations')
+    if (Object.hasOwn(world.locations[from].links, to) ||
+        Object.hasOwn(world.locations[to].links, from)) fail('Route already exists')
+    world.locations[from].links[to] = duration
+    world.locations[to].links[from] = duration
+    stamp(world, { kind: 'route.connected', actorIds: [actor.id],
+      locationId: from, visibleTo: [actor.id] })
   } else if (input.type === 'travel') {
     const to = requireId(input.toLocationId, 'toLocationId')
     const links = world.locations[actor.locationId].links
@@ -287,6 +307,18 @@ function autonomousAction(world, actor, at) {
     actor.energy = Math.max(0, actor.energy - 2)
     stamp(world, { kind: 'npc.socialized', at, actorIds: [actor.id, other.id],
       locationId: actor.locationId, visibleTo: [actor.id, other.id] })
+    // Deterministic and intentionally conservative: one previously witnessed
+    // *public* claim can be repeated per social action, with a clear source.
+    // Private facts never spread just because two people met.
+    const candidates = Object.keys(world.knowledge[actor.id] || {}).sort()
+      .filter(id => world.facts[id]?.visibility === 'public' && !knowledgeOf(world, other.id, id))
+    if (candidates.length) {
+      const id = candidates[hash('rumor:'+world.seed+':'+actor.id+':'+other.id+':'+at) % candidates.length]
+      const eventId = stamp(world, { kind: 'npc.rumor.shared', at,
+        actorIds: [actor.id, other.id], locationId: actor.locationId,
+        visibleTo: [actor.id, other.id], factIds: [id] })
+      learned(world, other.id, [id], actor.id, at, eventId)
+    }
   } else if (actor.goal === 'wander') {
     const routes = Object.keys(world.locations[actor.locationId].links).sort()
     if (!routes.length) return
@@ -424,6 +456,14 @@ export function livingWorldStatus(source, timelineRevision) {
     people: Object.values(source.people).filter(p => p.id !== playerId).map(p => ({
       id: p.id, name: p.name, goal: p.goal
     })),
+    locations: Object.values(source.locations).filter(loc =>
+      loc.id === source.people[playerId].locationId ||
+      !loc.id.startsWith('unknown_') && loc.id !== 'unknown').map(loc => ({
+        id: loc.id, name: loc.name,
+        links: Object.entries(loc.links).map(([to, minutes]) => ({ to, minutes }))
+      })),
+    playerLocationId: source.people[playerId].locationId,
+    playerTransit: source.people[playerId].transit || null,
     nearby: projected.nearby,
     facts: projected.facts,
     events: projected.events
