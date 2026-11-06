@@ -106,7 +106,7 @@ function tavernTheaterFormatText(source) {
         const dialogue = tavernTheaterDialogueLine(line);
         if (!dialogue) return line;
         changed = true;
-        return "@bubble:" + dialogue.name + "|" + dialogue.name + "|neutral|[" + dialogue.speech + "]";
+        return "@bubble:" + dialogue.name + "|" + dialogue.name + "||[" + dialogue.speech + "]";
     });
     return changed ? lines.join("\n") : text;
 }
