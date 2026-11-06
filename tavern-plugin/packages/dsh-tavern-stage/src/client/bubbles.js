@@ -352,6 +352,20 @@ function BubbleAvatar(props) {
     return h("span", { className: "fork-bubble-avatar" }, props.media?.loading ? h(Spinner, { key: JSON.stringify([props.alias,props.mood]), fill: true }) : null);
 }
 
+// A small, discoverable edit control keeps the image's existing "view large"
+// click intact. The native figure editor is the only owner of image bytes.
+function BubbleAvatarEditShortcut(props) {
+    if (!props.sessionId) return null;
+    const h = React.createElement;
+    const target = bubbleAvatarEditorTarget(props.character);
+    const label = target ? '更换' + props.name + '的头像' : '为' + props.name + '添加人物与头像';
+    return h('button', {
+        type: 'button', className: 'fork-bubble-avatar-edit',
+        'aria-label': label, title: label,
+        onClick: () => { void openBubbleAvatarEditor(props.sessionId, props.character); }
+    }, target ? '✎ 头像' : '＋ 头像');
+}
+
 function BubbleRow(props) {
     const h = React.createElement;
     const segment = props.segment, config = props.config;
@@ -379,7 +393,8 @@ function BubbleRow(props) {
                     const accent = index === 0 || index === 2;
                     return h("span", { key: index, className: index === 0 ? "fork-bubble-ch" : index === 2 ? "fork-bubble-cs" : undefined, "data-figure-ink": accent && figureName ? "4.5" : undefined }, ch);
                 })),
-                badge ? h("span", { className: "fork-bubble-mood" + (badge.color ? "" : " is-neutral"), style: badge.color ? { "--mood-color": badge.color } : undefined }, badge.label) : null),
+                badge ? h("span", { className: "fork-bubble-mood" + (badge.color ? "" : " is-neutral"), style: badge.color ? { "--mood-color": badge.color } : undefined }, badge.label) : null,
+                h(BubbleAvatarEditShortcut, { sessionId: props.sessionId, character: character, name: name })),
             h("div", { className: "fork-bubble-text" },
                 // Inner thoughts read as a parenthesised aside, not italics.
                 h("span", { className: "fork-bubble-line" }, segment.thought ? "（" + segment.text.replace(/^[（(]|[）)]$/g, "") + (segment.streaming ? "" : "）") : segment.text),
