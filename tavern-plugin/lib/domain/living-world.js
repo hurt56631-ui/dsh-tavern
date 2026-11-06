@@ -170,9 +170,11 @@ export function createLivingWorld(config) {
       nextActionAt: integer(row.nextActionAt ?? minute + DAY, 'nextActionAt', minute, Number.MAX_SAFE_INTEGER)
     }
   }
+  const playerId = config.playerId === undefined ? '' : requireId(config.playerId, 'playerId')
+  if (playerId && !Object.hasOwn(people, playerId)) fail('Player character not registered')
   const knowledge = Object.fromEntries(Object.keys(people).map(id => [id, {}]))
   return {
-    version: LIVING_WORLD_VERSION, worldId, branchId, revision: 0, minute, seed,
+    version: LIVING_WORLD_VERSION, worldId, branchId, revision: 0, minute, seed, playerId,
     locations, people, relations: {}, facts: {}, knowledge,
     events: [], pending: [], processed: [], seq: 0, archivedEvents: 0, backlog: false
   }
