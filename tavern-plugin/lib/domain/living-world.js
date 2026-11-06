@@ -3,6 +3,7 @@
 // No real-time timers, network calls, generated prose or global NPC omniscience.
 import { developNpcAcquaintance, eligibleNpcAid } from './living-world-social.js'
 import { createLivingCase, progressLivingCase, projectLivingCases } from './living-world-cases.js'
+import { createLivingPact, confirmLivingPact, endLivingPact, expireLivingPact, livingPactsFor } from './living-world-pacts.js'
 export const LIVING_WORLD_VERSION = 1
 const DAY = 1440
 const ID = /^[a-z][a-z0-9_-]{0,63}$/
@@ -10,6 +11,7 @@ const MAX_PEOPLE = 500
 const MAX_EVENTS = 800
 const MAX_OPERATIONS = 128
 const MAX_CASES = 80
+const MAX_PACTS = 80
 const MAX_STEP_MINUTES = DAY * 30
 
 function clone(value) { return JSON.parse(JSON.stringify(value)) }
@@ -85,6 +87,7 @@ function mutation(world, input) {
   const next = clone(world)
   // Old v1 save snapshots predate case records; preserve backward compatibility.
   if (!next.cases) next.cases = {}
+  if (!next.pacts) next.pacts = {}
   return { next, repeated: false, fingerprint }
 }
 function finish(world, input, fingerprint) {
@@ -176,6 +179,8 @@ export function createLivingWorld(config) {
       locationId, goal, alive: row.alive !== false,
       energy: integer(row.energy ?? 70, 'energy', 0, 100),
       coins: integer(row.coins ?? 0, 'coins', 0, 1000000000),
+      verifiedAge: row.verifiedAge === undefined || row.verifiedAge === null
+        ? null : integer(row.verifiedAge,'verifiedAge',0,125),
       nextActionAt: integer(row.nextActionAt ?? minute + DAY, 'nextActionAt', minute, Number.MAX_SAFE_INTEGER)
     }
   }
@@ -184,7 +189,7 @@ export function createLivingWorld(config) {
   const knowledge = Object.fromEntries(Object.keys(people).map(id => [id, {}]))
   return {
     version: LIVING_WORLD_VERSION, worldId, branchId, revision: 0, minute, seed, playerId,
-    locations, people, relations: {}, facts: {}, knowledge, cases: {},
+    locations, people, relations: {}, facts: {}, knowledge, cases: {}, pacts: {},
     events: [], pending: [], processed: [], seq: 0, archivedEvents: 0, backlog: false
   }
 }
@@ -198,7 +203,70 @@ export function commandLivingWorld(source, input) {
   const actor = person(world, input.actorId)
   if (!actor.alive || actor.transit) fail('Actor is unavailable')
   const at = world.minute
-  if (input.type === 'goal') {
+  if (input.type === 'pact.open') {
+    if (actor.id !== world.playerId) fail('Only the player can record a relationship')
+    if (Object.keys(world.pacts).length >= MAX_PACTS) fail('Relationship archive limit reached')
+    const first=person(world,input.fromId),second=person(world,input.toId)
+    if (!first.alive || !second.alive || first.transit ||
+        first.locationId !== actor.locationId) fail('Source party must be in the current scene')
+    if (input.kind !== 'grievance' &&
+        (second.transit || second.locationId !== actor.locationId))
+      fail('Both parties must meet in the current scene')
+    const exists=Object.values(world.pacts).some(p=>
+      p.kind===input.kind && ['proposed','active','recorded'].includes(p.status) &&
+      (input.kind==='grievance'
+        ? p.fromId===first.id && p.toId===second.id
+        : (p.fromId===first.id && p.toId===second.id ||
+           p.fromId===second.id && p.toId===first.id)))
+    if (exists) fail('An active record for this relationship already exists')
+    const id='pact_'+(++world.seq)
+    const pact=createLivingPact({id,kind:input.kind,fromId:first.id,toId:second.id,
+      evidence:input.evidence,minute:at,
+      fromAdult:Number.isInteger(first.verifiedAge)&&first.verifiedAge>=18,
+      toAdult:Number.isInteger(second.verifiedAge)&&second.verifiedAge>=18})
+    world.pacts[id]=pact
+    if (pact.kind==='grievance') {
+      if (!world.relations[first.id]) world.relations[first.id]={}
+      const prior=world.relations[first.id][second.id]||{}
+      world.relations[first.id][second.id]={...prior,
+        trust:Math.max(-100,(Number.isFinite(prior.trust)?prior.trust:0)-5),
+        status:'rival',lastMetAt:at}
+      const eventId=stamp(world,{kind:'pact.grievance',actorIds:[first.id],
+        locationId:actor.locationId,visibleTo:[actor.id,first.id]})
+      world.relations[first.id][second.id].lastEventId=eventId
+    } else {
+      world.pending.push({id:'job-'+(++world.seq),type:'pact.expire',
+        pactId:id,dueAt:pact.expiresAt})
+      stamp(world,{kind:'pact.proposed',actorIds:[first.id],
+        locationId:actor.locationId,visibleTo:[actor.id,first.id]})
+    }
+  } else if (input.type === 'pact.ack') {
+    if (actor.id !== world.playerId) fail('Only the player may record a witnessed response')
+    const pactId=requireId(input.pactId,'pactId')
+    const pact=world.pacts[pactId]
+    if (!pact) fail('Unknown relationship')
+    const participant=person(world,input.participantId)
+    if (!participant.alive || participant.transit || participant.locationId !== actor.locationId)
+      fail('Must witness this participant in person')
+    const result=confirmLivingPact(pact,participant.id,input.evidence,at)
+    world.pacts[pactId]=result.next
+    stamp(world,{kind:'pact.acknowledged',actorIds:[participant.id],
+      locationId:actor.locationId,visibleTo:[actor.id,participant.id]})
+    if (result.activated) stamp(world,{kind:'pact.activated',
+      actorIds:[pact.fromId,pact.toId],locationId:actor.locationId,
+      visibleTo:[actor.id,pact.fromId,pact.toId]})
+  } else if (input.type === 'pact.end') {
+    if (actor.id !== world.playerId) fail('Only the player may close a documented relationship')
+    const pactId=requireId(input.pactId,'pactId')
+    const pact=world.pacts[pactId]
+    if (!pact) fail('Unknown relationship')
+    const first=person(world,pact.fromId),second=person(world,pact.toId)
+    const visible=[first,second].some(p=>p.alive&&!p.transit&&p.locationId===actor.locationId)
+    if (!visible) fail('Must meet an involved person to record a change')
+    world.pacts[pactId]=endLivingPact(pact,input.evidence,at)
+    stamp(world,{kind:'pact.ended',actorIds:[first.id],
+      locationId:actor.locationId,visibleTo:[actor.id,...pact.knownBy]})
+  } else if (input.type === 'goal') {
     const goal = input.goal
     if (!['idle', 'work', 'socialize', 'wander'].includes(goal)) fail('Unknown NPC goal')
     if (actor.id === world.playerId) fail('Player goals are controlled by player commands')
@@ -359,7 +427,13 @@ export function commandLivingWorld(source, input) {
 }
 
 function settleTask(world, task) {
-  if (task.type === 'arrival') {
+  if (task.type === 'pact.expire') {
+    const pact=world.pacts?.[task.pactId]
+    if (!pact || pact.status!=='proposed') return
+    world.pacts[pact.id]=expireLivingPact(pact,task.dueAt)
+    stamp(world,{kind:'pact.expired',at:task.dueAt,
+      actorIds:[pact.fromId],visibleTo:[world.playerId,...pact.knownBy].filter(Boolean)})
+  } else if (task.type === 'arrival') {
     const actor = person(world, task.personId)
     if (!actor.alive || actor.transit?.taskId !== task.id) return
     actor.locationId = task.destination
@@ -575,7 +649,8 @@ export function livingWorldView(source, personId, limit = 15) {
     .map(other => ({ id: other.id, name: other.name }))
   return clone({ minute: world.minute, self: actor, nearby: neighbors,
     relationships: world.relations[actor.id] || {}, facts, events,
-    cases: projectLivingCases(world,actor.id,count), backlog: world.backlog })
+    cases: projectLivingCases(world,actor.id,count),
+    pacts: livingPactsFor(world,actor.id,count), backlog: world.backlog })
 }
 
 
@@ -594,7 +669,8 @@ export function livingWorldContext(source, viewerId, maximum = 3200) {
     beliefs: view.facts,
     experiencedEvents: view.events,
     relations: view.relationships,
-    cases: view.cases
+    cases: view.cases,
+    pacts: view.pacts
   }
   const prefix = '【NPC 个人已知情报；谣言不是事实；不得推断未记录的秘密】\n'
   let json = JSON.stringify(projection)
@@ -604,6 +680,7 @@ export function livingWorldContext(source, viewerId, maximum = 3200) {
     else if (projection.nearby.length) projection.nearby.pop()
     else if (Object.keys(projection.relations).length) projection.relations = {}
     else if (projection.cases.length) projection.cases.shift()
+    else if (projection.pacts.length) projection.pacts.shift()
     else break
     json = JSON.stringify(projection)
   }
@@ -644,7 +721,8 @@ export function livingWorldStatus(source, timelineRevision) {
     nearby: projected.nearby,
     facts: projected.facts,
     events: projected.events,
-    cases: projectLivingCases(source,playerId,MAX_CASES)
+    cases: projectLivingCases(source,playerId,MAX_CASES),
+    pacts: livingPactsFor(source,playerId,MAX_PACTS)
   }
 }
 
