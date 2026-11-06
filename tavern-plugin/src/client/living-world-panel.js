@@ -2,6 +2,7 @@
 // The save is authoritative; the client does not run an independent timer.
 function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
     const h = React.createElement;
+    const askConfirm = useTavernConfirm(sessionId);
     const world = view.livingWorld || {enabled:false,timelineRevision:0};
     const [pending, setPending] = React.useState(false);
     const [error, setError] = React.useState("");
@@ -52,8 +53,13 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
                 h("button",{type:"button",className:"dsh-tavern-btn",disabled:blocked||!canSeed,
                     onClick:()=>invoke("initLivingWorld",{})},"开启本局活世界")) :
                 h(React.Fragment,null,
-                    world.suspended ? h("p",{role:"alert"},
-                        "正文编辑后，世界进程已暂停，以免继续依据旧剧情结算。") : null,
+                    world.suspended ? h("div", {role:"alert"},
+                        h("p",null,"正文编辑后，世界进程已暂停。旧事件可能不再成立。"),
+                        h("button",{type:"button",className:"dsh-tavern-btn",disabled:pending||hostBusy,
+                            onClick:async()=>{
+                                const accepted=await askConfirm("重建活世界会清除这一局旧的模拟事件、NPC 行动和独立记忆；故事正文、游玩台账不变。确定继续吗？");
+                                if(accepted) await invoke("resetLivingWorld",{});
+                            }},"重新建立活世界")) : null,
                     world.backlog ? h("button",{type:"button",className:"dsh-tavern-btn",disabled:blocked,
                         onClick:()=>advance(0)},"继续处理待办事件") :
                     h("div",{className:"dsh-living-world-actions"},
