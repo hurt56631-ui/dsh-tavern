@@ -252,3 +252,41 @@ test('remote NPCs cannot receive instant goal orders or reveal live travel statu
     type:'case.open',kind:'missing',title:'远方调查',investigatorId:'npc_1',actionId:'remote'}),/same location/)
   assert.equal(Object.keys(chat.livingWorld.cases).length,0)
 })
+
+
+test('a finished investigator does not burn hundreds of empty ticks during long absences',()=>{
+  const seed=createLivingWorld({worldId:'small',branchId:'b1',playerId:'player',
+    locations:[{id:'city'}],people:[
+      {id:'player',locationId:'city',goal:'idle'},
+      {id:'inspector',locationId:'city',goal:'idle'}
+    ]})
+  let world=cmd(seed,{type:'case.open',actorId:'player',investigatorId:'inspector',
+    kind:'missing',title:'村中失踪传闻',actionId:'open'})
+  world=tick(world,2880,'first-two-days')
+  assert.equal(world.cases[Object.keys(world.cases)[0]].status,'awaiting_report')
+  assert.equal(world.people.inspector.nextActionAt,Number.MAX_SAFE_INTEGER)
+  const events=world.events.length
+  world=tick(world,10080,'seven-days-more')
+  assert.equal(world.backlog,false)
+  assert.equal(world.lastTick.executed,0)
+  assert.equal(world.events.length,events)
+  world=cmd(world,{type:'case.report',actorId:'player',
+    caseId:Object.keys(world.cases)[0],actionId:'ask'})
+  assert.equal(world.people.inspector.goal,'idle')
+  assert.ok(world.people.inspector.nextActionAt<Number.MAX_SAFE_INTEGER)
+})
+
+test('ordinary idle NPCs park after their first scheduled day, unless reassigned',()=>{
+  const seed=createLivingWorld({worldId:'small',branchId:'b1',playerId:'player',
+    locations:[{id:'city'}],people:[
+      {id:'player',locationId:'city',goal:'idle'},
+      {id:'worker',locationId:'city',goal:'idle'}
+    ]})
+  let world=tick(seed,1440,'first-day')
+  assert.equal(world.people.worker.nextActionAt,Number.MAX_SAFE_INTEGER)
+  world=tick(world,10080,'one-week')
+  assert.equal(world.lastTick.executed,0)
+  assert.equal(world.backlog,false)
+  world=cmd(world,{type:'goal',actorId:'worker',goal:'work',actionId:'reassign'})
+  assert.ok(world.people.worker.nextActionAt<Number.MAX_SAFE_INTEGER)
+})
