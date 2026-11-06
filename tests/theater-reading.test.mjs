@@ -16,20 +16,20 @@ const settings = runInNewContext(source + '\n; tavernTheaterReading;',sandbox);
 
 test('separate speaker dialogue becomes existing bubble format, narration is unchanged', () => {
     const original = '殿门紧闭。\n皇帝：朕再问一遍。\n王体乾：奴婢不敢。\n王体乾伏在地上。';
-    assert.equal(format(original), '殿门紧闭。\n@bubble:皇帝|皇帝|neutral|[朕再问一遍。]\n@bubble:王体乾|王体乾|neutral|[奴婢不敢。]\n王体乾伏在地上。');
+    assert.equal(format(original), '殿门紧闭。\n@bubble:皇帝|皇帝||[朕再问一遍。]\n@bubble:王体乾|王体乾||[奴婢不敢。]\n王体乾伏在地上。');
     assert.equal(original, '殿门紧闭。\n皇帝：朕再问一遍。\n王体乾：奴婢不敢。\n王体乾伏在地上。');
 });
 
 test('accept bold script headings but leave scene descriptions and existing bubble syntax', () => {
     assert.equal(format('**皇帝：** "你说吧。"\n**王体乾**：奴婢明白。\n地点：乾清宫\n@bubble:a|王体乾|joy|[好]'),
-        '@bubble:皇帝|皇帝|neutral|["你说吧。"]\n@bubble:王体乾|王体乾|neutral|[奴婢明白。]\n地点：乾清宫\n@bubble:a|王体乾|joy|[好]');
+        '@bubble:皇帝|皇帝||["你说吧。"]\n@bubble:王体乾|王体乾||[奴婢明白。]\n地点：乾清宫\n@bubble:a|王体乾|joy|[好]');
 });
 
 test('preserve fenced code, indentation, title, and Markdown/list markup', () => {
     const text = '~~~js\n皇帝：不可改代码\n~~~\n    皇帝：代码缩进\n# 场景：皇宫\n> 皇帝：引用\n- 皇帝：列表';
     assert.equal(format(text),text);
     assert.equal(format('```\n皇帝：否\n```\n皇帝：是'),
-        '```\n皇帝：否\n```\n@bubble:皇帝|皇帝|neutral|[是]');
+        '```\n皇帝：否\n```\n@bubble:皇帝|皇帝||[是]');
 });
 
 test('reject protocol delimiters, unsupported markup, and suspicious labels', () => {
