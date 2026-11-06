@@ -656,5 +656,6 @@ export function livingWorldFrameInputs(chat) {
   const context = livingWorldContext(chat.livingWorld, chat.livingWorld.playerId, 2400)
   return [{kind: 'foreground.current-state', required: false,
     source: {stage:'living-world', revision:chat.livingWorld.revision},
-    text: context + '\n【世界时间和 NPC 事件】此处仅为玩家已知事实。人物日常、信件和旅行由本地世界状态控制；不可替未见事件下结论。'}]
+    text: context + '\n【世界时间和 NPC 事件】此处仅为玩家已知事实。人物日常、信件和旅行由本地世界状态控制；不可替未见事件下结论。' +
+      '\n【案件边界】调查进度只是调查努力，不等于破案。未经核实的证言并非事实；禁止凭空认定凶手、犯罪成立、逮捕或判决。'}]
 }
