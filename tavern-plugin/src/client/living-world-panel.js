@@ -112,7 +112,7 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
                         h("label",null,"人物",
                             h("select",{"aria-label":"调整哪名 NPC",value:npc?.id||"",
                                 onChange:e=>{setSelectedNpc(e.target.value);setGoal("work")}},
-                                npcs.map(item=>h("option",{key:item.id,value:item.id},item.name)))),
+                                localNpcs.map(item=>h("option",{key:item.id,value:item.id},item.name)))),
                         h("label",null,"日常",
                             h("select",{"aria-label":"NPC 的行动目标",value:goal,
                                 onChange:e=>setGoal(e.target.value)},
