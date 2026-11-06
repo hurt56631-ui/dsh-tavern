@@ -23,6 +23,8 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
     const localNpcs = npcs.filter(item=>item.locationId===world.playerLocationId &&
         !item.transit && !world.playerTransit);
     const npc = localNpcs.find(item=>item.id===selectedNpc) || localNpcs[0] || null;
+    const npcHasActiveCase = Boolean(npc && Array.isArray(world.cases) && world.cases.some(item =>
+        !item.archived && item.status==="investigating" && item.investigatorId===npc.id));
     const actorNames = new Map([["player","你"], ...npcs.map(item=>[item.id,item.name])]);
     const labels = {idle:"待命",work:"工作",socialize:"社交",wander:"游历"};
     const eventLabel = {"npc.worked":"工作","npc.rested":"休息","npc.socialized":"交往",
@@ -118,7 +120,7 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
                                 onChange:e=>setGoal(e.target.value)},
                                 Object.entries(labels).map(([id,label])=>h("option",{key:id,value:id},label)))),
                         h("button",{type:"button",className:"dsh-tavern-btn",
-                            disabled:blocked||world.suspended||world.backlog||!npc,
+                            disabled:blocked||world.suspended||world.backlog||!npc||npcHasActiveCase,
                             onClick:()=>invoke("setLivingNpcGoal",{
                                 npcId:npc.id,goal,actionId:newActionId()})},"设置日程")
                     ) : h("p",null,"本局尚无 NPC，可在游玩台账中登记人物，后续再扩展到世界角色。"),
@@ -152,8 +154,8 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
                                             minutes:routeDuration,actionId:newActionId()});
                                     }},"确认路线"))):
                         h("p",null,"暂无其他已确认地点。请先在游玩台账记录人物所在地。")),
-                    h("div", {className:"dsh-living-world-cases"},
-                        h("strong",null,"案件与委托"),
+                    h("details", {className:"dsh-living-world-cases"},
+                        h("summary",null,"案件与委托 · "+(cases.filter(item=>!item.archived).length)+" 项调查"),
                         h("p",null,"只调查玩家确认的事情；线索属于未经核实的证言，不会自动判定真凶。"),
                         h("label",null,"案卷名称",h("input",{type:"text",maxLength:80,
                             value:newCaseTitle,placeholder:"例如：江南失踪案",
