@@ -32,15 +32,34 @@ export function createLivingWorldController({ chats, timeline, isBusy }) {
   // Seed from *existing* player-maintained ledger names. No invented
   // relationships, biographies, destinations, secrets or NPC goals.
   function seedFromLedger(current) {
-    const registered = (Array.isArray(current.ledger?.npcs) ? current.ledger.npcs : [])
-      .map(row => String(row?.name || '').trim()).filter(Boolean)
-    const names = [...new Set(registered)].slice(0, 24)
-    const place = String(current.ledger?.location || current.ledger?.locationPath?.at(-1) || '当前场景').slice(0, 80)
+    const registry = new Map()
+    for (const row of Array.isArray(current.ledger?.npcs) ? current.ledger.npcs : []) {
+      const name = String(row?.name || '').trim().slice(0, 80)
+      if (name && !registry.has(name) && registry.size < 24) registry.set(name, row)
+    }
+    const place = String(current.ledger?.location || current.ledger?.locationPath?.at(-1) || '当前场景').trim().slice(0, 80)
     const playerName = String(current.macroState?.userName || '你').slice(0, 80)
-    return {worldId:'game',playerId:'player',minute:0,seed:1,
-      locations:[{id:'scene',name:place,links:{}}],
-      people:[{id:'player',name:playerName,goal:'idle',locationId:'scene'},
-        ...names.map((name,i)=>({id:'npc_'+(i+1),name,goal:'idle',locationId:'scene'}))]}
+    const locations = [{id:'scene',name:place,links:{}}]
+    const knownPlaces = new Map([[place, 'scene']])
+    const people = [{id:'player',name:playerName,goal:'idle',locationId:'scene'}]
+    for (const [name, row] of registry) {
+      const knownLocation = String(row.location || '').trim().slice(0, 80)
+      let locationId = 'unknown'
+      if (row.follow === true || knownLocation === place) locationId = 'scene'
+      else if (knownLocation) {
+        if (!knownPlaces.has(knownLocation)) {
+          const id = 'loc_'+knownPlaces.size
+          locations.push({id,name:knownLocation,links:{}})
+          knownPlaces.set(knownLocation,id)
+        }
+        locationId = knownPlaces.get(knownLocation)
+      } else if (row.follow !== true) {
+        if (!locations.some(entry=>entry.id==='unknown'))
+          locations.push({id:'unknown',name:'位置未知',links:{}})
+      }
+      people.push({id:'npc_'+people.length,name,goal:'idle',locationId})
+    }
+    return {worldId:'game',playerId:'player',minute:0,seed:1,locations,people}
   }
   async function initialize({sessionId, expectedTimelineRevision}) {
     return change(sessionId, expectedTimelineRevision, (current,timelineState) => {
