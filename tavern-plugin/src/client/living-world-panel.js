@@ -12,6 +12,11 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
     const [goal, setGoal] = React.useState("work");
     const [travelTo, setTravelTo] = React.useState("");
     const [routeDuration, setRouteDuration] = React.useState(240);
+    const [newCaseTitle, setNewCaseTitle] = React.useState("");
+    const [newCaseKind, setNewCaseKind] = React.useState("other");
+    const [investigatorId, setInvestigatorId] = React.useState("");
+    const [selectedCaseId, setSelectedCaseId] = React.useState("");
+    const [clueDraft, setClueDraft] = React.useState("");
     const blocked = pending || hostBusy || view.regenInProgress;
     const canSeed = Array.isArray(view.ledger?.npcs) && view.ledger.npcs.some(row=>row?.name?.trim());
     const npcs = Array.isArray(world.people) ? world.people : [];
@@ -25,7 +30,10 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
         "route.connected":"路线确认","npc.rumor.shared":"公开消息传播",
         "npc.acquainted":"初次结识","npc.friendship.formed":"建立友谊",
         "npc.aid.offered":"提出互助","npc.aid.completed":"互助完成",
-        "npc.aid.cancelled":"互助取消"};
+        "npc.aid.cancelled":"互助取消",
+        "case.opened":"立案调查","case.clue.filed":"记录证言",
+        "case.investigated":"调查活动","case.report.ready":"调查阶段完成",
+        "case.reported":"听取调查报告","case.archived":"案件归档"};
     const newActionId = () => {
         try { if (window.crypto?.randomUUID) return window.crypto.randomUUID(); } catch (_) {}
         return "world-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,11);
@@ -36,9 +44,11 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
         try {
             await rpc(method, {expectedTimelineRevision:world.timelineRevision, ...params}, sessionId);
             liveTavernView.invalidate(sessionId);
-            setNotice("已更新并写入本局存档。")
+            setNotice("已更新并写入本局存档。");
+            return true;
         } catch (err) {
-            setError(String(err?.message || err))
+            setError(String(err?.message || err));
+            return false;
         } finally {
             setPending(false)
         }
@@ -51,6 +61,22 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
     const target = destinations.find(item=>item.id===travelTo) || destinations[0] || null;
     const directRoad = currentPlace?.links?.find(link=>link.to === target?.id);
     const playerInTransit = Boolean(world.playerTransit);
+    const cases = Array.isArray(world.cases) ? world.cases : [];
+    const activeCase = cases.find(item=>item.id===selectedCaseId) ||
+        cases.find(item=>!item.archived) || cases[0] || null;
+    const availableInvestigators = npcs.filter(item=>item.locationId===world.playerLocationId &&
+        !item.transit && !cases.some(row=>!row.archived && row.status==="investigating" &&
+            row.investigatorId===item.id));
+    const investigator = availableInvestigators.find(item=>item.id===investigatorId) ||
+        availableInvestigators[0] || null;
+    const caseInvestigator = npcs.find(item=>item.id===activeCase?.investigatorId);
+    const canDiscussCase = Boolean(activeCase && !activeCase.archived && !playerInTransit &&
+        caseInvestigator && !caseInvestigator.transit &&
+        caseInvestigator.locationId===world.playerLocationId);
+    const caseKinds = {missing:"失踪",theft:"盗窃",corruption:"贪腐",
+        death:"死亡疑案",other:"其他"};
+    const caseStatuses = {investigating:"调查进行中",awaiting_report:"等待报告",
+        awaiting_clues:"等待新线索",archived:"已归档（未定案）"};
     const heading = h("header", {className:"dsh-living-world-head"},
         h("strong", null, "活世界"),
         h("span", null, world.enabled ? "第 "+Math.floor(world.minute/1440)+" 天 · "+
@@ -124,6 +150,81 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
                                             minutes:routeDuration,actionId:newActionId()});
                                     }},"确认路线"))):
                         h("p",null,"暂无其他已确认地点。请先在游玩台账记录人物所在地。")),
+                    h("div", {className:"dsh-living-world-cases"},
+                        h("strong",null,"案件与委托"),
+                        h("p",null,"只调查玩家确认的事情；线索属于未经核实的证言，不会自动判定真凶。"),
+                        h("label",null,"案卷名称",h("input",{type:"text",maxLength:80,
+                            value:newCaseTitle,placeholder:"例如：江南失踪案",
+                            disabled:blocked||world.suspended,
+                            onChange:e=>setNewCaseTitle(e.target.value)})),
+                        h("div",{className:"dsh-living-world-actions"},
+                            h("label",null,"案由",h("select",{value:newCaseKind,
+                                disabled:blocked||world.suspended,onChange:e=>setNewCaseKind(e.target.value)},
+                                Object.entries(caseKinds).map(([id,label])=>
+                                    h("option",{key:id,value:id},label)))),
+                            h("label",null,"调查员",h("select",{value:investigator?.id||"",
+                                disabled:blocked||world.suspended||!investigator,
+                                onChange:e=>setInvestigatorId(e.target.value)},
+                                availableInvestigators.map(item=>
+                                    h("option",{key:item.id,value:item.id},item.name)))),
+                            h("button",{type:"button",className:"dsh-tavern-btn",
+                                disabled:blocked||world.suspended||world.backlog||playerInTransit||
+                                    !investigator||newCaseTitle.trim().length<2,
+                                onClick:async()=>{
+                                    const ok=await invoke("manageLivingWorldCase",{
+                                        type:"case.open",kind:newCaseKind,title:newCaseTitle.trim(),
+                                        investigatorId:investigator.id,actionId:newActionId()});
+                                    if(ok){setNewCaseTitle("");setSelectedCaseId("");}
+                                }},"建立案卷")),
+                        availableInvestigators.length===0 ? h("p",null,
+                            "需要一名当前在场、没有执行其他案件的 NPC 才能委派调查。") : null,
+                        cases.length ? h(React.Fragment,null,
+                            h("label",null,"已有案卷",h("select",{value:activeCase?.id||"",
+                                onChange:e=>{setSelectedCaseId(e.target.value);setClueDraft("");}},
+                                cases.map(record=>h("option",{key:record.id,value:record.id},
+                                    record.title+" · "+(caseStatuses[record.status]||"调查中"))))),
+                            activeCase ? h("div",{className:"dsh-living-world-case-detail"},
+                                h("p",null,(caseKinds[activeCase.kind]||"案件")+" · 调查员："+
+                                    (caseInvestigator?.name||"未知")+" · "+
+                                    (caseStatuses[activeCase.status]||"调查中")),
+                                h("p",null,"已获报告进度："+activeCase.progress+
+                                    "/2；已登记证言："+activeCase.clueCount+
+                                    " 条。未报告的调查内容不会显示。"),
+                                !activeCase.archived ? h(React.Fragment,null,
+                                    h("label",null,"补充线索（未经核实）",
+                                        h("textarea",{rows:2,maxLength:240,
+                                            value:clueDraft,placeholder:"只记录剧情中已经出现的证言",
+                                            disabled:blocked||world.suspended||!canDiscussCase,
+                                            onChange:e=>setClueDraft(e.target.value)})),
+                                    h("div",{className:"dsh-living-world-actions"},
+                                        h("button",{type:"button",className:"dsh-tavern-btn",
+                                            disabled:blocked||world.suspended||world.backlog||
+                                                !canDiscussCase||clueDraft.trim().length<3,
+                                            onClick:async()=>{
+                                                const ok=await invoke("manageLivingWorldCase",{
+                                                    type:"case.clue",caseId:activeCase.id,
+                                                    text:clueDraft.trim(),actionId:newActionId()});
+                                                if(ok)setClueDraft("");
+                                            }},"登记线索"),
+                                        h("button",{type:"button",className:"dsh-tavern-btn",
+                                            disabled:blocked||world.suspended||world.backlog||!canDiscussCase,
+                                            onClick:()=>invoke("manageLivingWorldCase",{
+                                                type:"case.report",caseId:activeCase.id,
+                                                actionId:newActionId()})},"询问调查进展"),
+                                        h("button",{type:"button",className:"dsh-tavern-btn",
+                                            disabled:blocked||world.suspended||world.backlog||!canDiscussCase,
+                                            onClick:async()=>{
+                                                const ok=await askConfirm("将此案归档为未定案？不会自动认定真凶，也不删除剧情正文。");
+                                                if(ok)await invoke("manageLivingWorldCase",{
+                                                    type:"case.archive",caseId:activeCase.id,
+                                                    actionId:newActionId()});
+                                            }},"归档（未解）"))):
+                                    h("p",null,"案件已归档。"),
+                                !canDiscussCase&&!activeCase.archived?h("p",null,
+                                    "调查员不在身边，需当面联系才能补充线索、获得报告或归档。"):null
+                            ):null
+                        ):h("p",null,"暂未建立案件。")
+                    ),
                     h("p",null,"附近人物：" + (world.nearby?.map(p=>p.name).join("、") || "暂无")),
                     world.events?.length ? h("div",null,
                         h("strong",null,"已知事件"),
