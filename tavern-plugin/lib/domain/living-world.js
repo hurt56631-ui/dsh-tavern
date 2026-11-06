@@ -362,3 +362,34 @@ export function livingWorldView(source, personId, limit = 15) {
   return clone({ minute: world.minute, self: actor, nearby: neighbors,
     relationships: world.relations[actor.id] || {}, facts, events, backlog: world.backlog })
 }
+
+
+// Build model context separately for each NPC. Never serialize global facts,
+// other people's knowledge, the omniscient event log or the full roster.
+// This is a local projection, not an API call and not a new game state.
+export function livingWorldContext(source, viewerId, maximum = 3200) {
+  const cap = integer(maximum, 'maximum', 500, 12000)
+  const view = livingWorldView(source, viewerId, 30)
+  const projection = {
+    gameMinute: view.minute,
+    character: { id: view.self.id, name: view.self.name,
+      locationId: view.self.locationId, energy: view.self.energy,
+      ...(view.self.transit ? { transit: view.self.transit } : {}) },
+    nearby: view.nearby,
+    beliefs: view.facts,
+    experiencedEvents: view.events,
+    relations: view.relationships
+  }
+  const prefix = '【NPC 个人已知情报；谣言不是事实；不得推断未记录的秘密】\n'
+  let json = JSON.stringify(projection)
+  while (prefix.length + json.length > cap) {
+    if (projection.experiencedEvents.length) projection.experiencedEvents.shift()
+    else if (projection.beliefs.length) projection.beliefs.shift()
+    else if (projection.nearby.length) projection.nearby.pop()
+    else if (Object.keys(projection.relations).length) projection.relations = {}
+    else break
+    json = JSON.stringify(projection)
+  }
+  if (prefix.length + json.length > cap) fail('NPC context cannot fit into the requested budget', 'WORLD_CONTEXT_BUDGET')
+  return prefix + json
+}
