@@ -87,7 +87,7 @@ test('NPCs without a confirmed location do not teleport next to the player',asyn
   const view=await fixture.controller.initialize({sessionId:'session-1',expectedTimelineRevision:0})
   assert.deepEqual(view.nearby.map(p=>p.name),['王体乾','随行侍卫'])
   assert.equal(fixture.get().livingWorld.people.npc_2.locationId,'loc_1')
-  assert.equal(fixture.get().livingWorld.people.npc_3.locationId,'unknown')
+  assert.equal(fixture.get().livingWorld.people.npc_3.locationId,'unknown_3')
   assert.equal(fixture.get().livingWorld.people.npc_4.locationId,'scene')
 })
 
