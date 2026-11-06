@@ -189,7 +189,15 @@ export function commandLivingWorld(source, input) {
   const actor = person(world, input.actorId)
   if (!actor.alive || actor.transit) fail('Actor is unavailable')
   const at = world.minute
-  if (input.type === 'fact') {
+  if (input.type === 'goal') {
+    const goal = input.goal
+    if (!['idle', 'work', 'socialize', 'wander'].includes(goal)) fail('Unknown NPC goal')
+    if (actor.id === world.playerId) fail('Player goals are controlled by player commands')
+    actor.goal = goal
+    actor.nextActionAt = Math.min(actor.nextActionAt, at + 60)
+    stamp(world, { kind: 'npc.goal.changed', actorIds: [actor.id], locationId: actor.locationId,
+      visibleTo: [world.playerId, actor.id].filter(Boolean) })
+  } else if (input.type === 'fact') {
     const factId = requireId(input.factId, 'factId')
     const text = String(input.text || '').trim()
     if (!text || text.length > 240 || Object.hasOwn(world.facts, factId)) fail('Invalid or duplicate fact')
@@ -394,4 +402,38 @@ export function livingWorldContext(source, viewerId, maximum = 3200) {
   }
   if (prefix.length + json.length > cap) fail('NPC context cannot fit into the requested budget', 'WORLD_CONTEXT_BUDGET')
   return prefix + json
+}
+
+
+// The status sidebar is the player's view, not an omniscient state dump.
+// Only already registered names and selectable *simulation policies* are shown.
+// Secrets and unseen events are never copied into this projection.
+export function livingWorldStatus(source, timelineRevision) {
+  if (!source) return { enabled: false }
+  requireWorld(source)
+  const playerId = source.playerId
+  if (!playerId || !Object.hasOwn(source.people, playerId)) fail('Living world player is missing')
+  const projected = livingWorldView(source, playerId, 20)
+  return {
+    enabled: true, worldId: source.worldId, branchId: source.branchId,
+    revision: source.revision, timelineRevision: Number(timelineRevision) || 0,
+    minute: source.minute, backlog: source.backlog === true, suspended: source.suspended === true,
+    people: Object.values(source.people).filter(p => p.id !== playerId).map(p => ({
+      id: p.id, name: p.name, goal: p.goal
+    })),
+    nearby: projected.nearby,
+    facts: projected.facts,
+    events: projected.events
+  }
+}
+
+// Only the player's knowledge goes to the next foreground turn; unsighted NPC
+// schedules, private motivations and private facts are excluded.
+export function livingWorldFrameInputs(chat) {
+  if (!chat?.livingWorld || chat.livingWorld.suspended) return []
+  if (!chat.livingWorld.playerId) return []
+  const context = livingWorldContext(chat.livingWorld, chat.livingWorld.playerId, 2400)
+  return [{kind: 'foreground.current-state', required: false,
+    source: {stage:'living-world', revision:chat.livingWorld.revision},
+    text: context + '\n【世界时间和 NPC 事件】此处仅为玩家已知事实。人物日常、信件和旅行由本地世界状态控制；不可替未见事件下结论。'}]
 }
