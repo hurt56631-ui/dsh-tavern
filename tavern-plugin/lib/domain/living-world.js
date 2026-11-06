@@ -412,6 +412,12 @@ function autonomousAction(world, actor, at) {
       locationId: actor.locationId, visibleTo: [actor.id] })
     return
   }
+  if (actor.goal === 'idle') {
+    // Sleeping schedules should not consume 1 budget unit every day forever.
+    // A player goal change explicitly reawakens the actor when appropriate.
+    actor.nextActionAt = Number.MAX_SAFE_INTEGER
+    return
+  }
   if (actor.goal === 'work') {
     actor.coins = Math.min(1000000000, actor.coins + 2)
     actor.energy = Math.max(0, actor.energy - 9)
