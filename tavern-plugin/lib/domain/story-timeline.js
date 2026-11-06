@@ -529,6 +529,16 @@ export function createStoryTimeline(options = {}) {
       chat.timeline.revision++
       value = { status: 'initialized', revision: chat.timeline.revision }
     }
+    else if (intent.kind === 'world.reset') {
+      if (!chat.livingWorld?.suspended) throw new Error('只有已暂停的活世界可以重新建立')
+      if (intent.expectedBranchId !== chat.timeline.branchId || Number(intent.expectedRevision) !== chat.timeline.revision)
+        throw new Error('重建活世界基于过期的时间线')
+      // Explicit player request after narrative edits: rebuild only from the
+      // current ledger roster; do not revive an invalidated historical branch.
+      chat.livingWorld = createLivingWorld({ ...object(intent.config), branchId: chat.timeline.branchId })
+      chat.timeline.revision++
+      value = { status:'reset', revision:chat.timeline.revision }
+    }
     else if (intent.kind === 'world.command' || intent.kind === 'world.advance') {
       if (!chat.livingWorld) throw new Error('尚未初始化活世界')
       const command = object(intent.command)
