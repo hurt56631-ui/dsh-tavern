@@ -17,6 +17,11 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
     const [investigatorId, setInvestigatorId] = React.useState("");
     const [selectedCaseId, setSelectedCaseId] = React.useState("");
     const [clueDraft, setClueDraft] = React.useState("");
+    const [pactKind, setPactKind] = React.useState("alliance");
+    const [pactFromId, setPactFromId] = React.useState("");
+    const [pactToId, setPactToId] = React.useState("");
+    const [pactId, setPactId] = React.useState("");
+    const [storyQuote, setStoryQuote] = React.useState("");
     const blocked = pending || hostBusy || view.regenInProgress;
     const canSeed = Array.isArray(view.ledger?.npcs) && view.ledger.npcs.some(row=>row?.name?.trim());
     const npcs = Array.isArray(world.people) ? world.people : [];
@@ -37,7 +42,10 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
         "npc.aid.cancelled":"互助取消",
         "case.opened":"立案调查","case.clue.filed":"记录证言",
         "case.investigated":"调查活动","case.report.ready":"调查阶段完成",
-        "case.reported":"听取调查报告","case.archived":"案件归档"};
+        "case.reported":"听取调查报告","case.archived":"案件归档",
+        "pact.proposed":"提出盟约","pact.acknowledged":"明确表态",
+        "pact.activated":"双方结盟","pact.grievance":"记录单方恩怨",
+        "pact.expired":"未获确认","pact.ended":"解除约定"};
     const newActionId = () => {
         try { if (window.crypto?.randomUUID) return window.crypto.randomUUID(); } catch (_) {}
         return "world-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,11);
@@ -81,6 +89,24 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
         death:"死亡疑案",other:"其他"};
     const caseStatuses = {investigating:"调查进行中",awaiting_report:"等待报告",
         awaiting_clues:"等待新线索",archived:"已归档（未定案）"};
+    const pacts = Array.isArray(world.pacts) ? world.pacts : [];
+    const pactKinds = {alliance:"结盟提议",courtship:"恋爱意向（双方成年）",grievance:"单向结怨"};
+    const pactStatuses = {proposed:"等待双方明确表态",active:"双方已确认",
+        recorded:"仅一方结怨",expired:"约定逾期",ended:"已结束"};
+    const pactActors = [{id:"player",name:"你",adultConfirmed:world.playerAdultConfirmed},...localNpcs];
+    const fromParty = pactActors.find(item=>item.id===pactFromId) || pactActors[0] || null;
+    const secondPool = pactKind==="grievance"
+        ? [{id:"player",name:"你",adultConfirmed:world.playerAdultConfirmed},...npcs] : pactActors;
+    const secondCandidates = secondPool.filter(item=>item.id!==fromParty?.id);
+    const toParty = secondCandidates.find(item=>item.id===pactToId) || secondCandidates[0] || null;
+    const selectedPact = pacts.find(item=>item.id===pactId) ||
+        pacts.find(item=>["proposed","active","recorded"].includes(item.status)) ||
+        pacts.at(-1) || null;
+    const pendingConsent = selectedPact?.status==="proposed" ?
+        [selectedPact.fromId,selectedPact.toId].filter(id=>
+            !selectedPact.confirmedBy.includes(id) && pactActors.some(p=>p.id===id)) : [];
+    const canRecordCourtship = pactKind!=="courtship" ||
+        Boolean(fromParty?.adultConfirmed && toParty?.adultConfirmed);
     const heading = h("header", {className:"dsh-living-world-head"},
         h("strong", null, "活世界"),
         h("span", null, world.enabled ? "第 "+Math.floor(world.minute/1440)+" 天 · "+
@@ -154,6 +180,83 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
                                             minutes:routeDuration,actionId:newActionId()});
                                     }},"确认路线"))):
                         h("p",null,"暂无其他已确认地点。请先在游玩台账记录人物所在地。")),
+                    h("details",{className:"dsh-living-world-pacts"},
+                        h("summary",null,"人物关系与盟约 · "+pacts.filter(p=>
+                            ["proposed","active","recorded"].includes(p.status)).length+" 条"),
+                        h("p",null,"重大关系只记录已经在 AI 正文中明确发生的对话。每一步需复制一段真实正文作为依据；不能凭空让 NPC 同意、结婚或知道秘密。"),
+                        h("label",null,"关系类型",h("select",{value:pactKind,
+                            onChange:e=>setPactKind(e.target.value),
+                            disabled:blocked||world.suspended},
+                            Object.entries(pactKinds).map(([kind,label])=>h("option",{key:kind,value:kind},label)))),
+                        h("div",{className:"dsh-living-world-actions"},
+                            h("label",null,"发起人",h("select",{value:fromParty?.id||"",
+                                onChange:e=>setPactFromId(e.target.value),disabled:blocked||world.suspended},
+                                pactActors.map(item=>h("option",{key:item.id,value:item.id},item.name)))),
+                            h("label",null,"关系对象",h("select",{value:toParty?.id||"",
+                                onChange:e=>setPactToId(e.target.value),disabled:blocked||world.suspended},
+                                secondCandidates.map(item=>h("option",{key:item.id,value:item.id},item.name))))),
+                        pactKind==="courtship"&&!canRecordCourtship ? h("p",{role:"status"},
+                            "双方的成年年龄需先在原游玩台账中明确记录，年龄未知时不能确认恋爱关系。") : null,
+                        h("label",null,"剧情依据原句",
+                            h("textarea",{rows:3,maxLength:240,value:storyQuote,
+                                placeholder:"请从已生成的正文复制至少 8 字原句，不要写自己的计划",
+                                onChange:e=>setStoryQuote(e.target.value),
+                                disabled:blocked||world.suspended})),
+                        h("button",{type:"button",className:"dsh-tavern-btn",
+                            disabled:blocked||world.suspended||world.backlog||
+                                !fromParty||!toParty||storyQuote.trim().length<8||!canRecordCourtship,
+                            onClick:async()=>{
+                                const ok=await askConfirm("确认已生成的正文中确实出现了这段情节？新关系仅作为玩家确认的记录，不会强迫对方同意。");
+                                if(!ok)return;
+                                const saved=await invoke("recordLivingWorldPact",{
+                                    type:"pact.open",kind:pactKind,
+                                    fromId:fromParty.id,toId:toParty.id,
+                                    storyQuote:storyQuote.trim(),actionId:newActionId()});
+                                if(saved){setStoryQuote("");setPactId("");}
+                            }},pactKind==="grievance"?"登记单向恩怨":"记录关系提议"),
+                        pacts.length?h(React.Fragment,null,
+                            h("label",null,"历史关系",h("select",{value:selectedPact?.id||"",
+                                onChange:e=>setPactId(e.target.value)},
+                                pacts.map(item=>h("option",{key:item.id,value:item.id},
+                                    (actorNames.get(item.fromId)||item.fromId)+" 与 "+
+                                    (actorNames.get(item.toId)||item.toId)+" · "+
+                                    (pactStatuses[item.status]||"未确认"))))),
+                            selectedPact?h("div",{className:"dsh-living-world-pact-detail"},
+                                h("p",null,(pactKinds[selectedPact.kind]||"关系")+" · "+
+                                    (pactStatuses[selectedPact.status]||"待确认")),
+                                h("p",null,"引用第 "+selectedPact.evidenceTurn+" 回正文。已确认："+
+                                    (selectedPact.confirmedBy.map(id=>actorNames.get(id)||id).join("、")||"无")),
+                                pendingConsent.length?h("div",{className:"dsh-living-world-actions"},
+                                    pendingConsent.map(id=>h("button",{key:id,type:"button",
+                                        className:"dsh-tavern-btn",
+                                        disabled:blocked||world.suspended||world.backlog||
+                                            storyQuote.trim().length<8,
+                                        onClick:async()=>{
+                                            const personName=actorNames.get(id)||id;
+                                            const ok=await askConfirm("确认 "+personName+
+                                                " 已在剧情正文中明确表态同意？这不会自动代表另一方同意。");
+                                            if(!ok)return;
+                                            const saved=await invoke("recordLivingWorldPact",{
+                                                type:"pact.ack",pactId:selectedPact.id,
+                                                participantId:id,storyQuote:storyQuote.trim(),
+                                                actionId:newActionId()});
+                                            if(saved)setStoryQuote("");
+                                        }},"记录 "+(actorNames.get(id)||id)+" 的表态"))) : null,
+                                ["proposed","active","recorded"].includes(selectedPact.status)?
+                                    h("button",{type:"button",className:"dsh-tavern-btn",
+                                        disabled:blocked||world.suspended||world.backlog||
+                                            storyQuote.trim().length<8,
+                                        onClick:async()=>{
+                                            const ok=await askConfirm("确认正文里确实已经发生解除或和解？该操作会保留历史记录。");
+                                            if(!ok)return;
+                                            const saved=await invoke("recordLivingWorldPact",{
+                                                type:"pact.end",pactId:selectedPact.id,
+                                                storyQuote:storyQuote.trim(),actionId:newActionId()});
+                                            if(saved)setStoryQuote("");
+                                        }},"依据剧情结束关系"):null
+                            ):null
+                        ):h("p",null,"暂无重大关系记录。")
+                    ),
                     h("details", {className:"dsh-living-world-cases"},
                         h("summary",null,"案件与委托 · "+(cases.filter(item=>!item.archived).length)+" 项调查"),
                         h("p",null,"只调查玩家确认的事情；线索属于未经核实的证言，不会自动判定真凶。"),
