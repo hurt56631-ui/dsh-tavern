@@ -8,6 +8,7 @@ import { resolveRuntimePresetMacros } from './runtime-presets.js'
 import { composeTavernRegexScripts } from './card-extension-reading.js'
 import { scriptPromptFrameInputs, consumeScriptPrompts } from './tavern-script-prompts.js'
 import { ledgerFrameInputs } from './story-ledger.js'
+import { livingWorldFrameInputs } from './living-world.js'
 import { projectBackgroundInput } from './runtime-content-projection.js'
 import { lastTavernHelperVariables } from './tavern-helper-context.js'
 import { normalizeResourcePath } from './file-resources.js'
@@ -252,7 +253,7 @@ export function foregroundFrameInputs(plan, sourceText, projectedText, presetSna
       source: { stage: 'mvu-background-owner' }
     })
   }
-  return inputs.concat(ledgerFrameInputs(chat), presetMiddleInstructions(presetSnapshot), scriptPromptFrameInputs(chat))
+  return inputs.concat(ledgerFrameInputs(chat), livingWorldFrameInputs(chat), presetMiddleInstructions(presetSnapshot), scriptPromptFrameInputs(chat))
 }
 
 function frameSource(chat, card, operation) {
