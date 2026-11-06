@@ -54,8 +54,10 @@ export function createLivingWorldController({ chats, timeline, isBusy }) {
         }
         locationId = knownPlaces.get(knownLocation)
       } else if (row.follow !== true) {
-        if (!locations.some(entry=>entry.id==='unknown'))
-          locations.push({id:'unknown',name:'位置未知',links:{}})
+        // Unknown positions are NOT one shared physical location.
+        // Isolate each NPC until the story confirms where they actually are.
+        locationId = 'unknown_'+people.length
+        locations.push({id:locationId,name:'位置未知',links:{}})
       }
       people.push({id:'npc_'+people.length,name,goal:'idle',locationId})
     }
@@ -95,6 +97,8 @@ export function createLivingWorldController({ chats, timeline, isBusy }) {
       if (world.backlog) throw new Error('请先结算未完成的世界事件')
       if (!world.people || !Object.hasOwn(world.people,npcId) || npcId === world.playerId)
         throw new Error('找不到这个 NPC')
+      if (goal === 'wander' && !Object.keys(world.locations?.[world.people[npcId].locationId]?.links || {}).length)
+        throw new Error('尚未配置地点之间的路线，暂时无法游历')
       const id = String(actionId || '')
       if (!/^[A-Za-z0-9][A-Za-z0-9:_-]{0,95}$/.test(id)) throw new Error('操作编号无效')
       return {kind:'world.command',expectedBranchId:timelineState.branchId,
