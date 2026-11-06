@@ -2,6 +2,7 @@
 // only after a caller commits the returned state through Story Timeline.
 // No real-time timers, network calls, generated prose or global NPC omniscience.
 import { developNpcAcquaintance, eligibleNpcAid } from './living-world-social.js'
+import { createLivingCase, progressLivingCase, projectLivingCases } from './living-world-cases.js'
 export const LIVING_WORLD_VERSION = 1
 const DAY = 1440
 const ID = /^[a-z][a-z0-9_-]{0,63}$/
@@ -80,7 +81,10 @@ function mutation(world, input) {
     return { next: clone(world), repeated: true, fingerprint }
   }
   if (input.expectedRevision !== world.revision) fail('World revision is stale', 'WORLD_STALE')
-  return { next: clone(world), repeated: false, fingerprint }
+  const next = clone(world)
+  // Old v1 save snapshots predate case records; preserve backward compatibility.
+  if (!next.cases) next.cases = {}
+  return { next, repeated: false, fingerprint }
 }
 function finish(world, input, fingerprint) {
   world.revision++
@@ -179,7 +183,7 @@ export function createLivingWorld(config) {
   const knowledge = Object.fromEntries(Object.keys(people).map(id => [id, {}]))
   return {
     version: LIVING_WORLD_VERSION, worldId, branchId, revision: 0, minute, seed, playerId,
-    locations, people, relations: {}, facts: {}, knowledge,
+    locations, people, relations: {}, facts: {}, knowledge, cases: {},
     events: [], pending: [], processed: [], seq: 0, archivedEvents: 0, backlog: false
   }
 }
@@ -201,6 +205,92 @@ export function commandLivingWorld(source, input) {
     actor.nextActionAt = Math.min(actor.nextActionAt, at + 60)
     stamp(world, { kind: 'npc.goal.changed', actorIds: [actor.id], locationId: actor.locationId,
       visibleTo: [world.playerId, actor.id].filter(Boolean) })
+  } else if (input.type === 'case.open') {
+    if (!world.playerId || actor.id !== world.playerId)
+      fail('Only the player may open a case')
+    const investigator = person(world, input.investigatorId)
+    if (investigator.id === actor.id || !investigator.alive || investigator.transit ||
+        investigator.locationId !== actor.locationId || investigator.caseId)
+      fail('Investigator must be a free NPC at the same location')
+    const id = 'case_' + (++world.seq)
+    const record = createLivingCase({id,kind:input.kind,title:input.title,
+      creatorId:actor.id,investigatorId:investigator.id,
+      locationId:actor.locationId,minute:at})
+    world.cases[id] = record
+    investigator.returnGoal = investigator.goal
+    investigator.goal = 'investigate'
+    investigator.caseId = id
+    investigator.nextActionAt = Math.min(investigator.nextActionAt, at + DAY)
+    stamp(world, {kind:'case.opened',actorIds:[actor.id,investigator.id],
+      locationId:actor.locationId,visibleTo:[actor.id,investigator.id]})
+  } else if (input.type === 'case.clue') {
+    const caseId = requireId(input.caseId,'caseId')
+    const record = world.cases[caseId]
+    if (!record || record.creatorId !== actor.id || record.status === 'archived')
+      fail('Case is unavailable')
+    const investigator = person(world,record.investigatorId)
+    if (!investigator.alive || investigator.transit || investigator.locationId !== actor.locationId)
+      fail('Clues must be handed to the investigator in person')
+    if (record.clueIds.length >= 32) fail('Case already holds the maximum number of clues')
+    const text = String(input.text || '').trim()
+    if (text.length < 3 || text.length > 240) fail('Clue text must contain 3–240 characters')
+    const factId = 'clue_' + (++world.seq)
+    world.facts[factId] = {id:factId,text,createdAt:at,sourceId:actor.id,
+      visibility:'private',kind:'testimony',verification:'unverified'}
+    const eventId = stamp(world, {kind:'case.clue.filed',actorIds:[actor.id,investigator.id],
+      locationId:actor.locationId,visibleTo:[actor.id,investigator.id],factIds:[factId]})
+    // Filing testimony is not verification. Both hear a claim, not a proven fact.
+    for (const ownerId of [actor.id,investigator.id])
+      world.knowledge[ownerId][factId] = {
+        status:'rumor',learnedAt:at,fromId:actor.id,eventId
+      }
+    record.clueIds.push(factId)
+    record.status = 'investigating'
+    record.progress = 0
+    record.reportedStatus = 'investigating'
+    record.reportedProgress = 0
+    if (investigator.caseId !== record.id) investigator.returnGoal = investigator.goal
+    investigator.caseId = record.id
+    investigator.goal = 'investigate'
+    investigator.nextActionAt = Math.min(investigator.nextActionAt, at + DAY)
+  } else if (input.type === 'case.report' || input.type === 'case.archive') {
+    const caseId = requireId(input.caseId,'caseId')
+    const record = world.cases[caseId]
+    if (!record || record.creatorId !== actor.id || record.status === 'archived')
+      fail('Case is unavailable')
+    const investigator = person(world,record.investigatorId)
+    if (!investigator.alive || investigator.transit ||
+        investigator.locationId !== actor.locationId)
+      fail('Case must be reviewed with the investigator in person')
+    if (input.type === 'case.report') {
+      // A request reveals only progress actually earned on prior game days.
+      record.reportedProgress = record.progress
+      record.lastReportAt = at
+      if (record.status === 'awaiting_report') {
+        record.status = 'awaiting_clues'
+        if (investigator.caseId === record.id) {
+          investigator.goal = investigator.returnGoal || 'idle'
+          delete investigator.caseId
+          delete investigator.returnGoal
+        }
+      }
+      record.reportedStatus = record.status
+      stamp(world, {kind:'case.reported',actorIds:[actor.id,investigator.id],
+        locationId:actor.locationId,visibleTo:[actor.id,investigator.id]})
+    } else {
+      // Archiving explicitly means "not adjudicated"; never infer guilt.
+      record.status = 'archived'
+      record.reportedStatus = 'archived'
+      record.archivedAt = at
+      record.outcome = 'unresolved'
+      if (investigator.caseId === record.id) {
+        investigator.goal = investigator.returnGoal || 'idle'
+        delete investigator.caseId
+        delete investigator.returnGoal
+      }
+      stamp(world, {kind:'case.archived',actorIds:[actor.id,investigator.id],
+        locationId:actor.locationId,visibleTo:[actor.id,investigator.id]})
+    }
   } else if (input.type === 'fact') {
     const factId = requireId(input.factId, 'factId')
     const text = String(input.text || '').trim()
@@ -358,6 +448,24 @@ function autonomousAction(world, actor, at) {
         visibleTo: [actor.id, other.id], factIds: [id] })
       learned(world, other.id, [id], actor.id, at, eventId)
     }
+  } else if (actor.goal === 'investigate') {
+    const record = world.cases?.[actor.caseId]
+    if (!record || record.investigatorId !== actor.id || record.status === 'archived') {
+      actor.goal = actor.returnGoal || 'idle'
+      delete actor.caseId
+      delete actor.returnGoal
+      return
+    }
+    // Only work at the actual case location. Travel, rumour and friendship
+    // cannot materialize evidence or an unjustified verdict.
+    if (actor.locationId !== record.locationId) return
+    const result = progressLivingCase(record,at)
+    if (!result.advanced) return
+    world.cases[record.id] = result.next
+    stamp(world,{kind:'case.investigated',at,actorIds:[actor.id],
+      locationId:actor.locationId,visibleTo:[actor.id]})
+    if (result.ready) stamp(world,{kind:'case.report.ready',at,
+      actorIds:[actor.id],locationId:actor.locationId,visibleTo:[actor.id]})
   } else if (actor.goal === 'wander') {
     const routes = Object.keys(world.locations[actor.locationId].links).sort()
     if (!routes.length) return
@@ -444,7 +552,8 @@ export function livingWorldView(source, personId, limit = 15) {
   const neighbors = nearby(world, actor.id).slice(0, count)
     .map(other => ({ id: other.id, name: other.name }))
   return clone({ minute: world.minute, self: actor, nearby: neighbors,
-    relationships: world.relations[actor.id] || {}, facts, events, backlog: world.backlog })
+    relationships: world.relations[actor.id] || {}, facts, events,
+    cases: projectLivingCases(world,actor.id,count), backlog: world.backlog })
 }
 
 
@@ -462,7 +571,8 @@ export function livingWorldContext(source, viewerId, maximum = 3200) {
     nearby: view.nearby,
     beliefs: view.facts,
     experiencedEvents: view.events,
-    relations: view.relationships
+    relations: view.relationships,
+    cases: view.cases
   }
   const prefix = '【NPC 个人已知情报；谣言不是事实；不得推断未记录的秘密】\n'
   let json = JSON.stringify(projection)
@@ -471,6 +581,7 @@ export function livingWorldContext(source, viewerId, maximum = 3200) {
     else if (projection.beliefs.length) projection.beliefs.shift()
     else if (projection.nearby.length) projection.nearby.pop()
     else if (Object.keys(projection.relations).length) projection.relations = {}
+    else if (projection.cases.length) projection.cases.shift()
     else break
     json = JSON.stringify(projection)
   }
@@ -506,7 +617,8 @@ export function livingWorldStatus(source, timelineRevision) {
     playerTransit: source.people[playerId].transit || null,
     nearby: projected.nearby,
     facts: projected.facts,
-    events: projected.events
+    events: projected.events,
+    cases: projected.cases
   }
 }
 
