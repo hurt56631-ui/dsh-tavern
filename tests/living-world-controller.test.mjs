@@ -7,7 +7,7 @@ import { createLivingWorldController } from '../tavern-plugin/lib/domain/living-
 function setup(ledger) {
   let id = 0
   let chat = {id:'chat-1',sessionId:'session-1',mode:'story',messages:[],
-    macroState:{userName:'皇帝'},ledger: ledger || {location:'乾清宫',npcs:[{name:'王体乾'},{name:'魏忠贤'}]}}
+    macroState:{userName:'皇帝'},ledger: ledger || {location:'乾清宫',npcs:[{name:'王体乾',location:'乾清宫'},{name:'魏忠贤',location:'乾清宫'}]}}
   const timeline = createStoryTimeline({id:prefix=>prefix+'-'+(++id),now:()=>100})
   let busy = false
   const chats = {
