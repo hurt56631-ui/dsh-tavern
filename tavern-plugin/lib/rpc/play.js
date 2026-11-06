@@ -142,6 +142,11 @@ export function createPlayHandlers(deps) {
       notifyPluginTimeline(args?.sessionId, 'edit', { settled: true })
       return {world}
     },
+    async manageLivingWorldCase(args) {
+      const world = await livingWorldController.caseAction(args || {})
+      notifyPluginTimeline(args?.sessionId, 'edit', { settled: true })
+      return {world}
+    },
     async saveGuideLibrary(args) {
       return { item: await conversationGuides.save(args?.sessionId, args?.name) }
     },
