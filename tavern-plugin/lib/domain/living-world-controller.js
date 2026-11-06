@@ -31,6 +31,14 @@ export function createLivingWorldController({ chats, timeline, isBusy }) {
 
   // Seed from *existing* player-maintained ledger names. No invented
   // relationships, biographies, destinations, secrets or NPC goals.
+  function provenAge(value) {
+    // Only exact numeric ages from the already recorded ledger qualify;
+    // "young", "around twenty" and missing ages are NOT proof of adulthood.
+    const match=/^(\d{1,3})\s*岁?$/.exec(String(value??'').trim())
+    if (!match) return null
+    const age=Number(match[1])
+    return age>=0 && age<=125 ? age : null
+  }
   function seedFromLedger(current) {
     const registry = new Map()
     for (const row of Array.isArray(current.ledger?.npcs) ? current.ledger.npcs : []) {
@@ -41,7 +49,8 @@ export function createLivingWorldController({ chats, timeline, isBusy }) {
     const playerName = String(current.macroState?.userName || '你').slice(0, 80)
     const locations = [{id:'scene',name:place,links:{}}]
     const knownPlaces = new Map([[place, 'scene']])
-    const people = [{id:'player',name:playerName,goal:'idle',locationId:'scene'}]
+    const people = [{id:'player',name:playerName,goal:'idle',locationId:'scene',
+      verifiedAge:provenAge(current.macroState?.userAge)}]
     for (const [name, row] of registry) {
       const knownLocation = String(row.location || '').trim().slice(0, 80)
       let locationId = 'unknown'
@@ -59,7 +68,8 @@ export function createLivingWorldController({ chats, timeline, isBusy }) {
         locationId = 'unknown_'+people.length
         locations.push({id:locationId,name:'位置未知',links:{}})
       }
-      people.push({id:'npc_'+people.length,name,goal:'idle',locationId})
+      people.push({id:'npc_'+people.length,name,goal:'idle',locationId,
+        verifiedAge:provenAge(row.age)})
     }
     return {worldId:'game',playerId:'player',minute:0,seed:1,locations,people}
   }
@@ -172,5 +182,39 @@ export function createLivingWorldController({ chats, timeline, isBusy }) {
         expectedRevision:timelineState.revision,command}
     })
   }
-  return Object.freeze({initialize,reset,advance,goal,route,travel,caseAction})
+  function quoteFromStory(current,excerpt) {
+    const quote=String(excerpt||'').trim()
+    if (quote.length<8 || quote.length>240) throw new Error('请引用已生成正文中的 8–240 字原句')
+    // Not model-written user text, memory summaries, or a mere typed wish.
+    const matched=(Array.isArray(current.messages)?current.messages:[])
+      .filter(item=>item?.role==='assistant' && typeof item.text==='string' &&
+        !item.greeting && item.text.includes(quote)).at(-1)
+    if (!matched) throw new Error('找不到这句已生成的剧情正文；请复制原文，不要自行编造')
+    return {quote,turn:Number.isSafeInteger(matched.turn)&&matched.turn>=0?matched.turn:0}
+  }
+  async function pactAction({sessionId,expectedTimelineRevision,type,actionId,
+      kind,fromId,toId,pactId,participantId,storyQuote}) {
+    if (!['pact.open','pact.ack','pact.end'].includes(type))
+      throw new Error('未知关系事件类型')
+    return change(sessionId,expectedTimelineRevision,(current,timelineState)=>{
+      const world=current.livingWorld
+      if (!world || !world.playerId) throw new Error('请先开启活世界')
+      if (world.backlog) throw new Error('请先处理到期事件')
+      const id=String(actionId||'')
+      if (!/^[A-Za-z0-9][A-Za-z0-9:_-]{0,95}$/.test(id))
+        throw new Error('操作编号无效')
+      const evidence=quoteFromStory(current,storyQuote)
+      const command={type,actionId:id,actorId:world.playerId,evidence}
+      if (type==='pact.open') Object.assign(command,{
+        kind:String(kind||''),fromId:String(fromId||''),toId:String(toId||'')
+      })
+      else {
+        command.pactId=String(pactId||'')
+        if (type==='pact.ack') command.participantId=String(participantId||'')
+      }
+      return {kind:'world.command',expectedBranchId:timelineState.branchId,
+        expectedRevision:timelineState.revision,command}
+    })
+  }
+  return Object.freeze({initialize,reset,advance,goal,route,travel,caseAction,pactAction})
 }
