@@ -531,10 +531,13 @@ export function createStoryTimeline(options = {}) {
     }
     else if (intent.kind === 'world.command' || intent.kind === 'world.advance') {
       if (!chat.livingWorld) throw new Error('尚未初始化活世界')
-      if (intent.expectedBranchId !== chat.timeline.branchId || Number(intent.expectedRevision) !== chat.timeline.revision)
+      const command = object(intent.command)
+      const retry = typeof command.actionId === 'string' &&
+        chat.livingWorld.processed.some(row => row.key === command.actionId)
+      if (intent.expectedBranchId !== chat.timeline.branchId ||
+          (Number(intent.expectedRevision) !== chat.timeline.revision && !retry))
         throw new Error('活世界行动基于过期的时间线')
       if (chat.livingWorld.suspended) throw new Error('剧情被修改，需先协调活世界记录')
-      const command = object(intent.command)
       const next = { ...command, branchId: chat.timeline.branchId, expectedRevision: chat.livingWorld.revision }
       const previousRevision = chat.livingWorld.revision
       chat.livingWorld = intent.kind === 'world.advance'
