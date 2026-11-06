@@ -117,6 +117,11 @@ export function createPlayHandlers(deps) {
       notifyPluginTimeline(args?.sessionId, 'edit', { settled: true })
       return {world}
     },
+    async resetLivingWorld(args) {
+      const world = await livingWorldController.reset(args || {})
+      notifyPluginTimeline(args?.sessionId, 'edit', { settled: true })
+      return {world}
+    },
     async advanceLivingWorld(args) {
       const world = await livingWorldController.advance(args || {})
       notifyPluginTimeline(args?.sessionId, 'edit', { settled: true })
