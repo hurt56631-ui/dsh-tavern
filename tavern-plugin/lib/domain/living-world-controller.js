@@ -106,5 +106,40 @@ export function createLivingWorldController({ chats, timeline, isBusy }) {
         command:{actionId:id,type:'goal',actorId:npcId,goal}}
     })
   }
-  return Object.freeze({initialize,reset,advance,goal})
+  // Roads are explicitly confirmed by the player. We only use places
+  // already in the ledger-derived world and never invent an offstage route.
+  async function route({sessionId, expectedTimelineRevision, fromLocationId, toLocationId, minutes, actionId}) {
+    if (!Number.isSafeInteger(minutes) || minutes < 30 || minutes > 43200)
+      throw new Error('旅程须在 30 分钟至 30 天之间')
+    return change(sessionId, expectedTimelineRevision, (current,timelineState) => {
+      const world = current.livingWorld
+      if (!world) throw new Error('请先开启活世界')
+      if (world.backlog) throw new Error('请先结算未完成的世界事件')
+      if (!Object.hasOwn(world.locations,fromLocationId) ||
+          !Object.hasOwn(world.locations,toLocationId)) throw new Error('地点不在当前世界中')
+      const id = String(actionId || '')
+      if (!/^[A-Za-z0-9][A-Za-z0-9:_-]{0,95}$/.test(id)) throw new Error('操作编号无效')
+      return {kind:'world.command',expectedBranchId:timelineState.branchId,
+        expectedRevision:timelineState.revision,
+        command:{actionId:id,type:'route',actorId:world.playerId,
+          fromLocationId,toLocationId,minutes}}
+    })
+  }
+  async function travel({sessionId, expectedTimelineRevision, toLocationId, actionId}) {
+    return change(sessionId, expectedTimelineRevision, (current,timelineState) => {
+      const world = current.livingWorld
+      if (!world) throw new Error('请先开启活世界')
+      if (world.backlog) throw new Error('请先结算未完成的世界事件')
+      const player = world.people[world.playerId]
+      if (!player || !player.alive || player.transit) throw new Error('玩家当前无法出发')
+      if (!Object.hasOwn(world.locations[player.locationId].links,toLocationId))
+        throw new Error('必须先确认道路和行程时间')
+      const id = String(actionId || '')
+      if (!/^[A-Za-z0-9][A-Za-z0-9:_-]{0,95}$/.test(id)) throw new Error('操作编号无效')
+      return {kind:'world.command',expectedBranchId:timelineState.branchId,
+        expectedRevision:timelineState.revision,
+        command:{actionId:id,type:'travel',actorId:world.playerId,toLocationId}}
+    })
+  }
+  return Object.freeze({initialize,reset,advance,goal,route,travel})
 }
