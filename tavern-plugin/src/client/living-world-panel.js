@@ -20,7 +20,9 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
     const blocked = pending || hostBusy || view.regenInProgress;
     const canSeed = Array.isArray(view.ledger?.npcs) && view.ledger.npcs.some(row=>row?.name?.trim());
     const npcs = Array.isArray(world.people) ? world.people : [];
-    const npc = npcs.find(item=>item.id===selectedNpc) || npcs[0] || null;
+    const localNpcs = npcs.filter(item=>item.locationId===world.playerLocationId &&
+        !item.transit && !world.playerTransit);
+    const npc = localNpcs.find(item=>item.id===selectedNpc) || localNpcs[0] || null;
     const actorNames = new Map([["player","你"], ...npcs.map(item=>[item.id,item.name])]);
     const labels = {idle:"待命",work:"工作",socialize:"社交",wander:"游历"};
     const eventLabel = {"npc.worked":"工作","npc.rested":"休息","npc.socialized":"交往",
