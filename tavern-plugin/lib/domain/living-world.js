@@ -1,6 +1,7 @@
 // An opt-in, zero-LLM world simulator. Facts, time and effects are authoritative
 // only after a caller commits the returned state through Story Timeline.
 // No real-time timers, network calls, generated prose or global NPC omniscience.
+import { developNpcAcquaintance, eligibleNpcAid } from './living-world-social.js'
 export const LIVING_WORLD_VERSION = 1
 const DAY = 1440
 const ID = /^[a-z][a-z0-9_-]{0,63}$/
@@ -268,6 +269,25 @@ function settleTask(world, task) {
     delete actor.transit
     stamp(world, { kind: 'travel.arrived', at: task.dueAt, actorIds: [actor.id],
       locationId: actor.locationId, visibleTo: [actor.id] })
+  } else if (task.type === 'aid') {
+    const donor = person(world, task.fromId)
+    const recipient = person(world, task.recipientId)
+    const relation = world.relations[donor.id]?.[recipient.id]
+    if (!donor.alive || !recipient.alive || donor.transit || recipient.transit ||
+        donor.locationId !== task.locationId || recipient.locationId !== task.locationId ||
+        donor.coins < task.amount || !relation || relation.status !== 'friend') {
+      stamp(world, { kind: 'npc.aid.cancelled', at: task.dueAt,
+        actorIds: [donor.id, recipient.id], locationId: task.locationId,
+        visibleTo: [donor.id, recipient.id] })
+      return
+    }
+    donor.coins -= task.amount
+    recipient.coins = Math.min(1000000000, recipient.coins + task.amount)
+    relation.trust = Math.min(100, relation.trust + 2)
+    relation.lastAidAt = task.dueAt
+    stamp(world, { kind: 'npc.aid.completed', at: task.dueAt,
+      actorIds: [donor.id, recipient.id], locationId: task.locationId,
+      visibleTo: [donor.id, recipient.id] })
   } else if (task.type === 'letter') {
     const recipient = person(world, task.recipientId)
     if (!recipient.alive || recipient.transit || recipient.locationId !== task.destination) {
@@ -297,16 +317,35 @@ function autonomousAction(world, actor, at) {
     stamp(world, { kind: 'npc.worked', at, actorIds: [actor.id],
       locationId: actor.locationId, visibleTo: [actor.id] })
   } else if (actor.goal === 'socialize') {
-    const others = nearby(world, actor.id)
+    const others = nearby(world, actor.id).filter(other => other.id !== world.playerId)
     if (!others.length) return
     const other = others[hash(world.seed + ':' + actor.id + ':' + at) % others.length]
     if (!world.relations[actor.id]) world.relations[actor.id] = {}
-    const relation = world.relations[actor.id][other.id] || { trust: 0 }
-    relation.trust = Math.min(100, relation.trust + 1)
+    const developed = developNpcAcquaintance(world.relations[actor.id][other.id], at)
+    const relation = developed.next
     world.relations[actor.id][other.id] = relation
     actor.energy = Math.max(0, actor.energy - 2)
-    stamp(world, { kind: 'npc.socialized', at, actorIds: [actor.id, other.id],
-      locationId: actor.locationId, visibleTo: [actor.id, other.id] })
+    const contact = stamp(world, { kind: 'npc.socialized', at,
+      actorIds: [actor.id, other.id], locationId: actor.locationId,
+      visibleTo: [actor.id, other.id] })
+    // Make the exact contact event the source of this directional memory.
+    relation.lastEventId = contact
+    if (developed.becameAcquainted || developed.becameFriends)
+      stamp(world, { kind: developed.becameFriends ? 'npc.friendship.formed' : 'npc.acquainted',
+        at, actorIds: [actor.id, other.id], locationId: actor.locationId,
+        visibleTo: [actor.id, other.id] })
+    // Aid is delayed, so the recipient and donor must still be present and
+    // solvent when the action actually settles. One outstanding offer per pair.
+    const hasPendingAid = world.pending.some(task => task.type === 'aid' &&
+      task.fromId === actor.id && task.recipientId === other.id)
+    if (!hasPendingAid && eligibleNpcAid({ relation, donor: actor, recipient: other,
+        minute: at, chance: hash('aid:' + world.seed + ':' + actor.id + ':' + other.id + ':' + at) })) {
+      relation.lastAidAt = at // reserve a cooldown for pending offers
+      world.pending.push({ id: 'job-' + (++world.seq), type: 'aid', fromId: actor.id,
+        recipientId: other.id, locationId: actor.locationId, dueAt: at + 60, amount: 2 })
+      stamp(world, { kind: 'npc.aid.offered', at, actorIds: [actor.id, other.id],
+        locationId: actor.locationId, visibleTo: [actor.id, other.id] })
+    }
     // Deterministic and intentionally conservative: one previously witnessed
     // *public* claim can be repeated per social action, with a clear source.
     // Private facts never spread just because two people met.
