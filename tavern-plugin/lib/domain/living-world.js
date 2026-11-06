@@ -246,6 +246,11 @@ export function commandLivingWorld(source, input) {
     const pact=world.pacts[pactId]
     if (!pact) fail('Unknown relationship')
     const participant=person(world,input.participantId)
+    const first=person(world,pact.fromId),second=person(world,pact.toId)
+    // Activation is public to both parties. Require them to be in the same
+    // scene instead of announcing an agreement to an absent NPC telepathically.
+    if (![first,second].every(p=>p.alive&&!p.transit&&p.locationId===actor.locationId))
+      fail('Both participants must be present to confirm this agreement')
     if (!participant.alive || participant.transit || participant.locationId !== actor.locationId)
       fail('Must witness this participant in person')
     const result=confirmLivingPact(pact,participant.id,input.evidence,at)
@@ -261,9 +266,12 @@ export function commandLivingWorld(source, input) {
     const pact=world.pacts[pactId]
     if (!pact) fail('Unknown relationship')
     const first=person(world,pact.fromId),second=person(world,pact.toId)
-    const visible=[first,second].some(p=>p.alive&&!p.transit&&p.locationId===actor.locationId)
-    if (!visible) fail('Must meet an involved person to record a change')
+    const local=p=>p.alive&&!p.transit&&p.locationId===actor.locationId
+    if (pact.kind==='grievance' ? !local(first) : !(local(first)&&local(second)))
+      fail('All affected parties must be present to record this change')
     world.pacts[pactId]=endLivingPact(pact,input.evidence,at)
+    if (pact.kind==='grievance' && world.relations[first.id]?.[second.id]?.status==='rival')
+      world.relations[first.id][second.id].status='estranged'
     stamp(world,{kind:'pact.ended',actorIds:[first.id],
       locationId:actor.locationId,visibleTo:[actor.id,...pact.knownBy]})
   } else if (input.type === 'goal') {
