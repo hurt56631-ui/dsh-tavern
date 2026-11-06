@@ -60,7 +60,7 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
                                 const accepted=await askConfirm("重建活世界会清除这一局旧的模拟事件、NPC 行动和独立记忆；故事正文、游玩台账不变。确定继续吗？");
                                 if(accepted) await invoke("resetLivingWorld",{});
                             }},"重新建立活世界")) : null,
-                    world.backlog ? h("button",{type:"button",className:"dsh-tavern-btn",disabled:blocked,
+                    world.backlog ? h("button",{type:"button",className:"dsh-tavern-btn",disabled:blocked||world.suspended,
                         onClick:()=>advance(0)},"继续处理待办事件") :
                     h("div",{className:"dsh-living-world-actions"},
                         [[60,"过一小时"],[1440,"过一天"],[10080,"过七天"]].map(([minutes,label])=>
@@ -85,7 +85,7 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
                         h("strong",null,"已知事件"),
                         h("ul",null,world.events.slice(-6).reverse().map(item=>
                             h("li",{key:item.id},"第 "+Math.floor(item.at/1440)+" 天 · "+
-                                (eventLabel[item.kind]||"事件")+" · "+(item.actorIds||[]).join("、")))) : null
+                                (eventLabel[item.kind]||"事件")+" · "+(item.actorIds||[]).join("、"))))) : null
                 ),
             notice?h("p",{role:"status"},notice):null,
             error?h("p",{role:"alert"},error):null
