@@ -141,5 +141,33 @@ export function createLivingWorldController({ chats, timeline, isBusy }) {
         command:{actionId:id,type:'travel',actorId:world.playerId,toLocationId}}
     })
   }
-  return Object.freeze({initialize,reset,advance,goal,route,travel})
+  // Human-confirmed cases; no game narrative is parsed into state-changing
+  // accusations and no NPC has permission to open/close a player's case.
+  async function caseAction({sessionId,expectedTimelineRevision,type,caseId,
+      investigatorId,kind,title,text,actionId}) {
+    const types = new Set(['case.open','case.clue','case.report','case.archive'])
+    if (!types.has(type)) throw new Error('未知的案件操作')
+    return change(sessionId,expectedTimelineRevision,(current,timelineState)=>{
+      const world=current.livingWorld
+      if (!world || !world.playerId) throw new Error('请先开启活世界')
+      if (world.backlog) throw new Error('请先处理当前待办事件')
+      const id=String(actionId||'')
+      if (!/^[A-Za-z0-9][A-Za-z0-9:_-]{0,95}$/.test(id))
+        throw new Error('操作编号无效')
+      const command={actionId:id,type,actorId:world.playerId}
+      if (type === 'case.open') {
+        if (!['missing','theft','corruption','death','other'].includes(kind))
+          throw new Error('未知案件分类')
+        command.kind=kind
+        command.title=String(title||'').trim()
+        command.investigatorId=String(investigatorId||'')
+      } else {
+        command.caseId=String(caseId||'')
+        if (type === 'case.clue') command.text=String(text||'').trim()
+      }
+      return {kind:'world.command',expectedBranchId:timelineState.branchId,
+        expectedRevision:timelineState.revision,command}
+    })
+  }
+  return Object.freeze({initialize,reset,advance,goal,route,travel,caseAction})
 }
