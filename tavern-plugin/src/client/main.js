@@ -1017,6 +1017,7 @@ function clipReplayCore() {
 			// The profile switch page (dsh-profile-bridge) names itself by side from this flag.
 			window.__dshTavernLoaded = true;
             installTavernPresentation(ctx);
+            ctx.effect(() => installBubbleAvatarQuickEdit(window), "dsh-tavern: transcript avatar editor navigation");
             // Stage registration is deferred until its optional client plugin mounts.
             const stageRegistrations = [];
             const stageEffect = run => stageRegistrations.push(run);
