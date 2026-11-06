@@ -1,4 +1,5 @@
 import { createScopedMessages } from './scoped-messages.js'
+import { createLivingWorld, commandLivingWorld, advanceLivingWorld, rebaseLivingWorld } from './living-world.js'
 import { participantOf } from './background-members.js'
 function clone(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value))
@@ -117,6 +118,7 @@ export function createStoryTimeline(options = {}) {
       runtimeInputs: chat.runtimeInputs === undefined ? null : chat.runtimeInputs,
       posture: str(chat.posture),
       ledger: chat.ledger || null,
+      livingWorld: chat.livingWorld === undefined ? null : chat.livingWorld,
       scriptState: chat.scriptState === undefined ? null : chat.scriptState,
       candidates: chat.candidates === undefined ? null : chat.candidates,
       settleStatus: str(chat.settleStatus) || 'idle',
@@ -146,6 +148,9 @@ export function createStoryTimeline(options = {}) {
     chat.tavernScriptPrompts = clone(source.tavernScriptPrompts || [])
     chat.posture = str(source.posture)
     chat.ledger = clone(source.ledger || null)
+    // Missing values in older checkpoints must remove changes from future turns.
+    if (source.livingWorld === undefined || source.livingWorld === null) delete chat.livingWorld
+    else chat.livingWorld = clone(source.livingWorld)
     chat.scriptState = clone(source.scriptState === undefined ? null : source.scriptState)
     chat.candidates = clone(source.candidates === undefined ? null : source.candidates)
     chat.settleStatus = str(source.settleStatus) || 'idle'
@@ -496,6 +501,7 @@ export function createStoryTimeline(options = {}) {
       }
     }
     chat.timeline.branchId = branchId
+    if (chat.livingWorld) chat.livingWorld = rebaseLivingWorld(chat.livingWorld, branchId)
     chat.timeline.revision = oldRevision + 1
     chat.timeline.checkpoints = checkpoints.slice(0, -1)
     chat.timeline.participants = nextParticipants
@@ -515,6 +521,31 @@ export function createStoryTimeline(options = {}) {
     const intent = object(input && input.intent)
     let value
     if (intent.kind === 'ensure') value = { status: 'applied', branchId: chat.timeline.branchId, revision: chat.timeline.revision }
+    else if (intent.kind === 'world.init') {
+      if (chat.livingWorld) throw new Error('活世界已经初始化')
+      if (intent.expectedBranchId !== chat.timeline.branchId || Number(intent.expectedRevision) !== chat.timeline.revision)
+        throw new Error('活世界初始化基于过期的时间线')
+      chat.livingWorld = createLivingWorld({ ...object(intent.config), branchId: chat.timeline.branchId })
+      chat.timeline.revision++
+      value = { status: 'initialized', revision: chat.timeline.revision }
+    }
+    else if (intent.kind === 'world.command' || intent.kind === 'world.advance') {
+      if (!chat.livingWorld) throw new Error('尚未初始化活世界')
+      if (intent.expectedBranchId !== chat.timeline.branchId || Number(intent.expectedRevision) !== chat.timeline.revision)
+        throw new Error('活世界行动基于过期的时间线')
+      if (chat.livingWorld.suspended) throw new Error('剧情被修改，需先协调活世界记录')
+      const command = object(intent.command)
+      const next = { ...command, branchId: chat.timeline.branchId, expectedRevision: chat.livingWorld.revision }
+      const previousRevision = chat.livingWorld.revision
+      chat.livingWorld = intent.kind === 'world.advance'
+        ? advanceLivingWorld(chat.livingWorld, next)
+        : commandLivingWorld(chat.livingWorld, next)
+      // Idempotent replays do not move either revision; callers may safely
+      // retry an already committed world command with their prior request ID.
+      if (chat.livingWorld.revision !== previousRevision) chat.timeline.revision++
+      value = { status: 'applied', revision: chat.timeline.revision, worldRevision: chat.livingWorld.revision,
+        minute: chat.livingWorld.minute, backlog: chat.livingWorld.backlog }
+    }
     else if (intent.kind === 'ledger.edit') {
       chat.ledger = clone(intent.ledger)
       chat.timeline.revision++
@@ -543,6 +574,9 @@ export function createStoryTimeline(options = {}) {
       // Prose is authoritative. The previous settlement must not overrule the
       // edited scene in foreground requests or in the resident background Agent.
       chat.posture = ''
+      // A manually replaced narrative can invalidate previously derived world
+      // facts. Suspend further simulation rather than silently keeping them.
+      if (chat.livingWorld) chat.livingWorld.suspended = true
       chat.lastSettle = null
       chat.settleStatus = 'idle'
       chat.settleError = null
@@ -627,6 +661,7 @@ export function createStoryTimeline(options = {}) {
         }
       }
       chat.timeline.branchId = branchId
+      if (chat.livingWorld) chat.livingWorld = rebaseLivingWorld(chat.livingWorld, branchId)
       chat.timeline.revision = Math.max(currentRevision, chat.timeline.revision) + 1
       chat.timeline.participants = participants
       for (const operation of Object.values(chat.timeline.operations)) {
