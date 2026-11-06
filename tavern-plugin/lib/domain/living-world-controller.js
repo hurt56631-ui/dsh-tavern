@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { livingWorldStatus } from './living-world.js'
 
 const GOALS = new Set(['idle', 'work', 'socialize', 'wander'])
@@ -32,19 +31,29 @@ export function createLivingWorldController({ chats, timeline, isBusy }) {
 
   // Seed from *existing* player-maintained ledger names. No invented
   // relationships, biographies, destinations, secrets or NPC goals.
+  function seedFromLedger(current) {
+    const registered = (Array.isArray(current.ledger?.npcs) ? current.ledger.npcs : [])
+      .map(row => String(row?.name || '').trim()).filter(Boolean)
+    const names = [...new Set(registered)].slice(0, 24)
+    const place = String(current.ledger?.location || current.ledger?.locationPath?.at(-1) || '当前场景').slice(0, 80)
+    const playerName = String(current.macroState?.userName || '你').slice(0, 80)
+    return {worldId:'game',playerId:'player',minute:0,seed:1,
+      locations:[{id:'scene',name:place,links:{}}],
+      people:[{id:'player',name:playerName,goal:'idle',locationId:'scene'},
+        ...names.map((name,i)=>({id:'npc_'+(i+1),name,goal:'idle',locationId:'scene'}))]}
+  }
   async function initialize({sessionId, expectedTimelineRevision}) {
     return change(sessionId, expectedTimelineRevision, (current,timelineState) => {
       if (current.livingWorld) throw new Error('这局游戏已经开启活世界')
-      const registered = (Array.isArray(current.ledger?.npcs) ? current.ledger.npcs : [])
-        .map(row => String(row?.name || '').trim()).filter(Boolean)
-      const names = [...new Set(registered)].slice(0, 24)
-      const place = String(current.ledger?.location || current.ledger?.locationPath?.at(-1) || '当前场景').slice(0, 80)
-      const playerName = String(current.macroState?.userName || '你').slice(0, 80)
-      return {kind:'world.init',expectedBranchId:timelineState.branchId,expectedRevision:timelineState.revision,
-        config:{worldId:'game',playerId:'player',minute:0,seed:1,
-          locations:[{id:'scene',name:place,links:{}}],
-          people:[{id:'player',name:playerName,goal:'idle',locationId:'scene'},
-            ...names.map((name,i)=>({id:'npc_'+(i+1),name,goal:'idle',locationId:'scene'}))]}}
+      return {kind:'world.init',expectedBranchId:timelineState.branchId,
+        expectedRevision:timelineState.revision,config:seedFromLedger(current)}
+    })
+  }
+  async function reset({sessionId, expectedTimelineRevision}) {
+    return change(sessionId, expectedTimelineRevision, (current,timelineState) => {
+      if (!current.livingWorld?.suspended) throw new Error('活世界并未暂停，不需要重建')
+      return {kind:'world.reset',expectedBranchId:timelineState.branchId,
+        expectedRevision:timelineState.revision,config:seedFromLedger(current)}
     })
   }
   async function advance({sessionId, expectedTimelineRevision, minutes, actionId}) {
@@ -74,5 +83,5 @@ export function createLivingWorldController({ chats, timeline, isBusy }) {
         command:{actionId:id,type:'goal',actorId:npcId,goal}}
     })
   }
-  return Object.freeze({initialize,advance,goal})
+  return Object.freeze({initialize,reset,advance,goal})
 }
