@@ -454,7 +454,8 @@ export function livingWorldStatus(source, timelineRevision) {
     revision: source.revision, timelineRevision: Number(timelineRevision) || 0,
     minute: source.minute, backlog: source.backlog === true, suspended: source.suspended === true,
     people: Object.values(source.people).filter(p => p.id !== playerId).map(p => ({
-      id: p.id, name: p.name, goal: p.goal
+      id: p.id, name: p.name, goal: p.goal, locationId: p.locationId,
+      transit: p.transit ? { to:p.transit.to, dueAt:p.transit.dueAt } : null
     })),
     locations: Object.values(source.locations).filter(loc =>
       loc.id === source.people[playerId].locationId ||
