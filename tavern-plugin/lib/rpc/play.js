@@ -12,7 +12,7 @@ import { randomUUID } from 'node:crypto'
 export function createPlayHandlers(deps) {
   const { agentCompaction, agentRegistry, autoChoices, backgroundAgentRunner, backgroundCatalog, storyEvents, workflow, pluginApi, bodyEditor, branchOrigin, polishPrereview, polishRecords, polishReviewer, applyCardUpdate, cardAutoReload,
     candidateGenerator, candidateTasks, chatForSession, compactionAbort, conversationGuides, ctx,
-    ledgerEditor, manualCharacterDesign, manualLedger, messageDeletion, notifyPluginTimeline, phoneChat,
+    ledgerEditor, livingWorldController, manualCharacterDesign, manualLedger, messageDeletion, notifyPluginTimeline, phoneChat,
     pluginSettlementProgress, readBackgroundSuppression, readTavernSettings,
     reconcileStory, reconcileWhenIdle, regenBody, replayFailedTurn, requestPerformance, retrySettlement,
     retryStyleReference, rollbackTurn, rollbackToTurn, runtimeGeneration, sessionActivity, sessionOperation,
@@ -109,6 +109,23 @@ export function createPlayHandlers(deps) {
     async editLedger(args) {
       await ledgerEditor(args || {})
       return { view: await sessionView(args.sessionId) }
+    },
+    // Opt-in zero-API world; all mutations serialize through the same Chat writer
+    // and the existing Timeline revision/rollback checks.
+    async initLivingWorld(args) {
+      const world = await livingWorldController.initialize(args || {})
+      notifyPluginTimeline(args?.sessionId, 'edit', { settled: true })
+      return {world}
+    },
+    async advanceLivingWorld(args) {
+      const world = await livingWorldController.advance(args || {})
+      notifyPluginTimeline(args?.sessionId, 'edit', { settled: true })
+      return {world}
+    },
+    async setLivingNpcGoal(args) {
+      const world = await livingWorldController.goal(args || {})
+      notifyPluginTimeline(args?.sessionId, 'edit', { settled: true })
+      return {world}
     },
     async saveGuideLibrary(args) {
       return { item: await conversationGuides.save(args?.sessionId, args?.name) }
