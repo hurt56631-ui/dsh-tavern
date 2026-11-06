@@ -10,7 +10,7 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
     const [expanded, setExpanded] = React.useState(false);
     const [selectedNpc, setSelectedNpc] = React.useState("");
     const [goal, setGoal] = React.useState("work");
-    const blocked = pending || hostBusy || view.regenInProgress || world.suspended;
+    const blocked = pending || hostBusy || view.regenInProgress;
     const canSeed = Array.isArray(view.ledger?.npcs) && view.ledger.npcs.some(row=>row?.name?.trim());
     const npcs = Array.isArray(world.people) ? world.people : [];
     const npc = npcs.find(item=>item.id===selectedNpc) || npcs[0] || null;
@@ -24,7 +24,7 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
         return "world-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,11);
     };
     async function invoke(method, params) {
-        if (blocked) return;
+        if (blocked || (world.suspended && method !== 'resetLivingWorld')) return;
         setPending(true); setError(""); setNotice("");
         try {
             await rpc(method, {expectedTimelineRevision:world.timelineRevision, ...params}, sessionId);
@@ -65,7 +65,7 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
                     h("div",{className:"dsh-living-world-actions"},
                         [[60,"过一小时"],[1440,"过一天"],[10080,"过七天"]].map(([minutes,label])=>
                             h("button",{key:minutes,type:"button",className:"dsh-tavern-btn",
-                                disabled:blocked,onClick:()=>advance(minutes)},label))),
+                                disabled:blocked||world.suspended,onClick:()=>advance(minutes)},label))),
                     npcs.length ? h("div",{className:"dsh-living-world-actions"},
                         h("label",null,"人物",
                             h("select",{"aria-label":"调整哪名 NPC",value:npc?.id||"",
@@ -76,7 +76,7 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
                                 onChange:e=>setGoal(e.target.value)},
                                 Object.entries(labels).map(([id,label])=>h("option",{key:id,value:id},label)))),
                         h("button",{type:"button",className:"dsh-tavern-btn",
-                            disabled:blocked||world.backlog||!npc,
+                            disabled:blocked||world.suspended||world.backlog||!npc,
                             onClick:()=>invoke("setLivingNpcGoal",{
                                 npcId:npc.id,goal,actionId:newActionId()})},"设置日程")
                     ) : h("p",null,"本局尚无 NPC，可在游玩台账中登记人物，后续再扩展到世界角色。"),
