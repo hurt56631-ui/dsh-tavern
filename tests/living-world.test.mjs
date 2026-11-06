@@ -74,7 +74,8 @@ test('NPC scheduling is deterministic and local; bounded catch-up has resumable 
   assert.equal(first.lastTick.executed, 2)
   assert.equal(first.backlog, true)
   assert.equal(first.minute, 5760)
-  assert.equal(first.people.wang.coins, 2)
+  // A small budget may process other actors before Wang; no event is skipped.
+  assert.equal(first.people.wang.coins, 0)
   const complete = tick(first, 0, 'time2', 256)
   assert.equal(complete.backlog, false)
   assert.ok(complete.people.wang.coins >= 2)
