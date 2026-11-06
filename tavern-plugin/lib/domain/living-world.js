@@ -644,7 +644,7 @@ export function livingWorldStatus(source, timelineRevision) {
     nearby: projected.nearby,
     facts: projected.facts,
     events: projected.events,
-    cases: projected.cases
+    cases: projectLivingCases(source,playerId,MAX_CASES)
   }
 }
 
