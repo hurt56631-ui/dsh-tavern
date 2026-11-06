@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createLivingWorld, commandLivingWorld, advanceLivingWorld,
-  rebaseLivingWorld, livingWorldView } from '../tavern-plugin/lib/domain/living-world.js'
+  rebaseLivingWorld, livingWorldView, livingWorldContext } from '../tavern-plugin/lib/domain/living-world.js'
 import { createStoryTimeline } from '../tavern-plugin/lib/domain/story-timeline.js'
 
 const create = () => createLivingWorld({
@@ -137,4 +137,28 @@ test('Story Timeline owns world snapshots, rollback and a new branch', () => {
   assert.equal(rollback.chat.livingWorld.branchId,rollback.chat.timeline.branchId)
   assert.equal(rollback.chat.livingWorld.knowledge.emperor.secret.status, 'known')
   assert.equal(rollback.chat.livingWorld.events.some(e=>e.kind==='npc.worked'),false)
+})
+
+
+test('NPC prompt context is bounded and excludes secrets that actor has not learned', () => {
+  const world = cmd(create(), {type:'fact',actorId:'emperor',
+    factId:'secret',text:'只有皇帝知道的密令',actionId:'secret1'})
+  const uninformed = livingWorldContext(world, 'wei', 600)
+  const informed = livingWorldContext(world, 'emperor', 600)
+  assert.equal(uninformed.includes('只有皇帝知道的密令'),false)
+  assert.equal(uninformed.includes('secret'),false)
+  assert.equal(informed.includes('只有皇帝知道的密令'),true)
+  assert.ok(uninformed.length <= 600)
+  assert.ok(informed.length <= 600)
+})
+
+test('Timeline rejects old branch after a rollback, and refuses unsupported automatic init', () => {
+  const timeline = createStoryTimeline({id: (() => {let n=0; return prefix=>prefix+'-'+(++n)})()})
+  let chat = timeline.apply({chat:{id:'chat',messages:[]},intent:{kind:'ensure'}}).chat
+  assert.throws(() => timeline.apply({chat,intent:{kind:'world.init',
+    expectedBranchId:'wrong',expectedRevision:chat.timeline.revision,
+    config:{worldId:'test',locations:[{id:'a'}]}}}), /过期/)
+  const unchanged = structuredClone(chat)
+  assert.equal(chat.livingWorld,undefined)
+  assert.deepEqual(chat,unchanged)
 })
