@@ -335,6 +335,7 @@
 				settlementRetryBusy: settlementRetryBusy, retrySettlement: retrySettlement, latestDebugTurn: latestDebugTurn, designCharacter: designCharacter, designRemoving, removeCharacterDesign });
 		}
 
+		// @include living-world-panel.js
 		// @include status-panel.js
 		// @include gal-choices.js
 
