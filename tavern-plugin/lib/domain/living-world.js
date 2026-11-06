@@ -409,7 +409,7 @@ export function livingWorldContext(source, viewerId, maximum = 3200) {
 // Only already registered names and selectable *simulation policies* are shown.
 // Secrets and unseen events are never copied into this projection.
 export function livingWorldStatus(source, timelineRevision) {
-  if (!source) return { enabled: false }
+  if (!source) return { enabled: false, timelineRevision: Number(timelineRevision) || 0 }
   requireWorld(source)
   const playerId = source.playerId
   if (!playerId || !Object.hasOwn(source.people, playerId)) fail('Living world player is missing')
