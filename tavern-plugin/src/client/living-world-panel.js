@@ -14,7 +14,7 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
     const canSeed = Array.isArray(view.ledger?.npcs) && view.ledger.npcs.some(row=>row?.name?.trim());
     const npcs = Array.isArray(world.people) ? world.people : [];
     const npc = npcs.find(item=>item.id===selectedNpc) || npcs[0] || null;
-    const labels = {idle:"待命",work:"工作",socialize:"社交",wander:"游历"};
+    const labels = {idle:"待命",work:"工作",socialize:"社交"};
     const eventLabel = {"npc.worked":"工作","npc.rested":"休息","npc.socialized":"交往",
         "npc.goal.changed":"调整日程","travel.started":"出发","travel.arrived":"抵达",
         "letter.sent":"寄信","letter.delivered":"收到信","letter.missed":"投递失败",
@@ -47,7 +47,7 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
     return h("section", {className:"fork-status-section dsh-living-world",
         "aria-label":"活世界（不消耗额外 AI）"}, heading,
         expanded ? h("div", {className:"dsh-living-world-body"},
-            h("p", null, "NPC 的日常由本地规则结算，只有点击推进时间才运行；不自动消耗 AI。"),
+            h("p", null, "NPC 的日常由本地规则结算，只有点击推进时间才运行；不自动消耗 AI。地点路线编辑完成后才会开放游历。"),
             !world.enabled ? h(React.Fragment,null,
                 h("p",null,canSeed?"从现有游玩台账的角色姓名建立世界。默认待命，不自动编造人物经历。":"请先在游玩台账添加至少一名 NPC，然后开启。"),
                 h("button",{type:"button",className:"dsh-tavern-btn",disabled:blocked||!canSeed,
