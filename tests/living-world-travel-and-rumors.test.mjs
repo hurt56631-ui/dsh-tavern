@@ -86,7 +86,7 @@ test('controller travel and route mutation are rejected on stale session state',
   assert.equal(trip.playerLocationId,'scene')
   assert.ok(trip.playerTransit)
   const arrived=await ctl.advance({sessionId:'session',expectedTimelineRevision:trip.timelineRevision,
-    minutes:240,actionId:'time3'})
+    minutes:1440,actionId:'time3'})
   assert.equal(arrived.playerLocationId,'loc_1')
   assert.equal(arrived.playerTransit,null)
 })
