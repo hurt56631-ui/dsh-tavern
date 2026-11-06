@@ -21,7 +21,10 @@ function TavernLivingWorldPanel({sessionId, view, busy: hostBusy}) {
         "npc.goal.changed":"调整日程","travel.started":"出发","travel.arrived":"抵达",
         "letter.sent":"寄信","letter.delivered":"收到信","letter.missed":"投递失败",
         "fact.told":"告知","fact.witnessed":"见证",
-        "route.connected":"路线确认","npc.rumor.shared":"公开消息传播"};
+        "route.connected":"路线确认","npc.rumor.shared":"公开消息传播",
+        "npc.acquainted":"初次结识","npc.friendship.formed":"建立友谊",
+        "npc.aid.offered":"提出互助","npc.aid.completed":"互助完成",
+        "npc.aid.cancelled":"互助取消"};
     const newActionId = () => {
         try { if (window.crypto?.randomUUID) return window.crypto.randomUUID(); } catch (_) {}
         return "world-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,11);
