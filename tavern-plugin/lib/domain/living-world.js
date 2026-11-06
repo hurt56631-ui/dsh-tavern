@@ -86,6 +86,7 @@ function finish(world, input, fingerprint) {
 }
 function routeMinutes(world, from, to) {
   if (from === to) return 60
+  if (!Object.hasOwn(world.locations, from) || !Object.hasOwn(world.locations, to)) fail('Unknown route destination', 'WORLD_NO_ROUTE')
   const distance = new Map([[from, 0]])
   const visited = new Set()
   while (distance.size) {
@@ -108,7 +109,8 @@ function needsQuiet(world) {
     || Object.values(world.people).some(actor => actor.alive && actor.nextActionAt <= world.minute)
 }
 function knowledgeOf(world, personId, factId) {
-  return world.knowledge[personId]?.[factId] || null
+  const knowledge = world.knowledge[personId]
+  return knowledge && Object.hasOwn(knowledge, factId) ? knowledge[factId] : null
 }
 function shareableFacts(world, personId, factIds) {
   if (!Array.isArray(factIds) || factIds.length === 0 || factIds.length > 12) fail('Invalid factIds')
@@ -212,7 +214,8 @@ export function commandLivingWorld(source, input) {
     }
   } else if (input.type === 'travel') {
     const to = requireId(input.toLocationId, 'toLocationId')
-    const minutes = world.locations[actor.locationId].links[to]
+    const links = world.locations[actor.locationId].links
+    const minutes = Object.hasOwn(links, to) ? links[to] : null
     if (!minutes) fail('Travel requires a connected route', 'WORLD_NO_ROUTE')
     const taskId = 'job-' + (++world.seq)
     actor.transit = { from: actor.locationId, to, taskId, dueAt: at + minutes }
