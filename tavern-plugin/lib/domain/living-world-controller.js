@@ -20,11 +20,12 @@ export function createLivingWorldController({ chats, timeline, isBusy }) {
       if (isBusy(current) || ['pending', 'running', 'waiting-runtime'].includes(current.settleStatus))
         throw new Error('正文或后台结算尚未结束，请稍后操作')
       // Inspect inside the atomic update, not using a previously captured Chat.
-      const timelineState = timeline.inspect({chat:current})
+      const normalized = timeline.apply({chat:current,intent:{kind:'ensure'}}).chat
+      const timelineState = timeline.inspect({chat:normalized})
       if (timelineState.revision !== expectedTimelineRevision)
         throw new Error('世界状态已经更新，请刷新后再操作')
-      const intent = makeIntent(current, timelineState)
-      return timeline.apply({chat:current,intent}).chat
+      const intent = makeIntent(normalized, timelineState)
+      return timeline.apply({chat:normalized,intent}).chat
     }, {source:'living-world.manual'})
     return livingWorldStatus(saved.livingWorld, saved.timeline?.revision)
   }
