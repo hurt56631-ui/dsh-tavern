@@ -201,6 +201,7 @@ export function commandLivingWorld(source, input) {
     const goal = input.goal
     if (!['idle', 'work', 'socialize', 'wander'].includes(goal)) fail('Unknown NPC goal')
     if (actor.id === world.playerId) fail('Player goals are controlled by player commands')
+    if (actor.caseId) fail('Investigator must finish or report the active case first')
     actor.goal = goal
     actor.nextActionAt = Math.min(actor.nextActionAt, at + 60)
     stamp(world, { kind: 'npc.goal.changed', actorIds: [actor.id], locationId: actor.locationId,
