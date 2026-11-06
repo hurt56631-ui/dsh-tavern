@@ -9,6 +9,7 @@ const ID = /^[a-z][a-z0-9_-]{0,63}$/
 const MAX_PEOPLE = 500
 const MAX_EVENTS = 800
 const MAX_OPERATIONS = 128
+const MAX_CASES = 80
 const MAX_STEP_MINUTES = DAY * 30
 
 function clone(value) { return JSON.parse(JSON.stringify(value)) }
@@ -207,6 +208,8 @@ export function commandLivingWorld(source, input) {
     stamp(world, { kind: 'npc.goal.changed', actorIds: [actor.id], locationId: actor.locationId,
       visibleTo: [world.playerId, actor.id].filter(Boolean) })
   } else if (input.type === 'case.open') {
+    if (Object.keys(world.cases).length >= MAX_CASES)
+      fail('This game has reached the case archive limit')
     if (!world.playerId || actor.id !== world.playerId)
       fail('Only the player may open a case')
     const investigator = person(world, input.investigatorId)
@@ -271,6 +274,7 @@ export function commandLivingWorld(source, input) {
         record.status = 'awaiting_clues'
         if (investigator.caseId === record.id) {
           investigator.goal = investigator.returnGoal || 'idle'
+          investigator.nextActionAt = Math.min(investigator.nextActionAt,at + DAY)
           delete investigator.caseId
           delete investigator.returnGoal
         }
@@ -286,6 +290,7 @@ export function commandLivingWorld(source, input) {
       record.outcome = 'unresolved'
       if (investigator.caseId === record.id) {
         investigator.goal = investigator.returnGoal || 'idle'
+        investigator.nextActionAt = Math.min(investigator.nextActionAt,at + DAY)
         delete investigator.caseId
         delete investigator.returnGoal
       }
@@ -344,6 +349,7 @@ export function commandLivingWorld(source, input) {
     if (!minutes) fail('Travel requires a connected route', 'WORLD_NO_ROUTE')
     const taskId = 'job-' + (++world.seq)
     actor.transit = { from: actor.locationId, to, taskId, dueAt: at + minutes }
+    if (actor.goal === 'investigate') actor.nextActionAt = Number.MAX_SAFE_INTEGER
     world.pending.push({ id: taskId, type: 'arrival', personId: actor.id,
       destination: to, dueAt: at + minutes })
     stamp(world, { kind: 'travel.started', actorIds: [actor.id],
@@ -358,6 +364,10 @@ function settleTask(world, task) {
     if (!actor.alive || actor.transit?.taskId !== task.id) return
     actor.locationId = task.destination
     delete actor.transit
+    if (actor.goal === 'investigate' &&
+        world.cases?.[actor.caseId]?.locationId === actor.locationId &&
+        world.cases[actor.caseId].status === 'investigating')
+      actor.nextActionAt = Math.min(actor.nextActionAt,task.dueAt + DAY)
     stamp(world, { kind: 'travel.arrived', at: task.dueAt, actorIds: [actor.id],
       locationId: actor.locationId, visibleTo: [actor.id] })
   } else if (task.type === 'aid') {
@@ -465,8 +475,13 @@ function autonomousAction(world, actor, at) {
     world.cases[record.id] = result.next
     stamp(world,{kind:'case.investigated',at,actorIds:[actor.id],
       locationId:actor.locationId,visibleTo:[actor.id]})
-    if (result.ready) stamp(world,{kind:'case.report.ready',at,
-      actorIds:[actor.id],locationId:actor.locationId,visibleTo:[actor.id]})
+    if (result.ready) {
+      // The report is ready; do not charge one useless NPC tick per day
+      // while waiting for the player to return and ask for it.
+      actor.nextActionAt = Number.MAX_SAFE_INTEGER
+      stamp(world,{kind:'case.report.ready',at,
+        actorIds:[actor.id],locationId:actor.locationId,visibleTo:[actor.id]})
+    }
   } else if (actor.goal === 'wander') {
     const routes = Object.keys(world.locations[actor.locationId].links).sort()
     if (!routes.length) return
