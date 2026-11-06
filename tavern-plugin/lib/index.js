@@ -276,6 +276,7 @@ import { plainReplyProse } from './domain/reply-prose.js'
 import { createScriptContinuity } from './domain/script-continuity.js'
 import { appendWritingSkillState } from './domain/skill-visibility.js'
 import { createStoryTimeline } from './domain/story-timeline.js'
+import { createLivingWorldController } from './domain/living-world-controller.js'
 import { resolveTavernDataRoot } from './domain/tavern-data.js'
 import { FileSystemSkillProvider } from '@deepseek-ai/dsh-skill-filesystem'
 import { createTavernSkillProvider } from './domain/tavern-skill-provider.js'
@@ -3156,6 +3157,11 @@ export async function apply(ctx) {
     chats: { forSession: chatForSession, update: updateChat }, timeline: storyTimeline,
     isBusy: chat => backgroundTasks.activity(chat).busy || Boolean(chat.regenInProgress) || agentRegistry.get(chat.sessionId)?.phase?.kind === 'running'
   })
+  const livingWorldController = createLivingWorldController({
+    chats: { forSession: chatForSession, update: updateChat }, timeline: storyTimeline,
+    isBusy: chat => backgroundTasks.activity(chat).busy || Boolean(chat.regenInProgress) ||
+      agentRegistry.get(chat.sessionId)?.phase?.kind === 'running'
+  })
   const scriptNavigation = createScriptNavigation({
     chats: { forSession: chatForSession, update: updateChat }, readScript, scripts: scriptContinuity,
     updateSettings: updateTavernSettings,
@@ -3636,7 +3642,7 @@ export async function apply(ctx) {
     fileResources, forkChat, fullTemplateRuntime, generationStreamModes, getCardOpenings, groupOfMode, guideLibrary,
     helperGenerationPreset, helperGenerationTasks, helperHistoryAccess, hostCompatibility, importCard, exportCardFile,
     replaceCard, importCardArchiveFile, importChatHistoryText, importGameSave, importPluginCardFile, importPreset,
-    importScript, importSettingsBundle, importSource, ledgerEditor, listCards, listTavernResources,
+    importScript, importSettingsBundle, importSource, ledgerEditor, livingWorldController, listCards, listTavernResources,
     listTavernSessions, liveCardUpdate, llm, manualCharacterDesign, manualLedger, mobileCardImport,
     modelRequestLog, mvuDiagnostics, notifyPluginTimeline, openingPreparation, pagesInFront,
     playCardSnapshots, pluginApi, pluginBodyGeneration, pluginDataStore, pluginGalleryItems, pluginMediaForTurn, pluginMediaTurns,
