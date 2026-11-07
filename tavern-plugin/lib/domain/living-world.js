@@ -514,15 +514,20 @@ function autonomousAction(world, actor, at) {
     const relation = developed.next
     world.relations[actor.id][other.id] = relation
     actor.energy = Math.max(0, actor.energy - 2)
+    // The player may witness a social interaction in the same scene, but
+    // not a privately whispered fact exchanged during that interaction.
+    const player = world.playerId && world.people[world.playerId]
+    const witnessed = player && player.alive && !player.transit &&
+      player.locationId === actor.locationId ? [player.id] : []
     const contact = stamp(world, { kind: 'npc.socialized', at,
       actorIds: [actor.id, other.id], locationId: actor.locationId,
-      visibleTo: [actor.id, other.id] })
+      visibleTo: [actor.id, other.id, ...witnessed] })
     // Make the exact contact event the source of this directional memory.
     relation.lastEventId = contact
     if (developed.becameAcquainted || developed.becameFriends)
       stamp(world, { kind: developed.becameFriends ? 'npc.friendship.formed' : 'npc.acquainted',
         at, actorIds: [actor.id, other.id], locationId: actor.locationId,
-        visibleTo: [actor.id, other.id] })
+        visibleTo: [actor.id, other.id, ...witnessed] })
     // Aid is delayed, so the recipient and donor must still be present and
     // solvent when the action actually settles. One outstanding offer per pair.
     const hasPendingAid = world.pending.some(task => task.type === 'aid' &&
