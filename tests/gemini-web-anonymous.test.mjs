@@ -113,7 +113,9 @@ test('OpenAI compatible health, catalog, completion and streaming', async t => {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, stream: true })
   })).text()
   assert.match(stream, /chat\.completion\.chunk/)
-  assert.match(stream, /Hi friend/)
+  const deltas = stream.split('\n').filter(line => line.startsWith('data: {'))
+    .map(line => JSON.parse(line.slice(6)).choices?.[0]?.delta?.content || '').join('')
+  assert.equal(deltas, 'Hi friend')
   assert.match(stream, /data: \[DONE\]/)
   const badModel = await fetch(base + '/v1/chat/completions', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, model: 'gemini-pro-made-up' })
