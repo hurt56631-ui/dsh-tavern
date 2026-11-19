@@ -194,6 +194,12 @@ async function* streamPlainText(client, messages, signal) {
 export function createTavernGeminiAdapter({ client = createAnonymousGeminiWebClient() } = {}) {
   const adapter = {
     providerInfo(provider) { return { id: provider, name: 'Gemini Web（免费网页·匿名）' } },
+    providerRetryPolicy() {
+      // A timed-out anonymous POST may have already generated a reply upstream:
+      // retrying it could duplicate a story turn and consume guest quota.
+      return { mode: 'normal', maxRetries: 0, retryableCodes: ['RATE_LIMIT'],
+        initialDelayMs: 500, maxDelayMs: 10000, jitterRatio: 0 }
+    },
     async listModels(provider) {
       return [{ provider, id: GEMINI_WEB_MODEL, name: 'Gemini（自动，实际型号未验证）',
         description: '无需 API Key，文本优先；Google 可限流或更改协议', inputModalities: ['text'] }]
