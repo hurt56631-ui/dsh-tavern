@@ -2,12 +2,6 @@ name: Build DSH Tavern Gemini Android APK
 
 on:
   workflow_dispatch:
-    inputs:
-      offline:
-        description: 'Embed dependencies and source for first launch (recommended)'
-        required: true
-        type: boolean
-        default: true
 
 permissions:
   contents: read
@@ -45,7 +39,7 @@ jobs:
           TAVERN_APK_VARIANT: canary
           TAVERN_APK_MODE: Debug
           TAVERN_APK_SOURCE_REF: ${{ github.ref_name }}
-          TAVERN_APK_OFFLINE: ${{ inputs.offline && '1' || '0' }}
+          TAVERN_APK_OFFLINE: '1'
         run: bash android/apk/build.sh
       - name: Record APK information
         if: success()
