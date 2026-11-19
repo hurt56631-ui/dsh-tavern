@@ -7,13 +7,13 @@ SOURCE_ROOT="${TAVERN_APK_SOURCE_ROOT:-$ROOT}"
 # 变体：空 = 正式版；canary = 测试版（独立包名、名称与版本号，可与正式版同时安装）。
 VARIANT="${TAVERN_APK_VARIANT:-}"
 SUFFIX=''
-APP_ID='io.github.flizzywine.dshtavern.standalone'
-APP_NAME='DSH Tavern'
+APP_ID='io.github.hurt56631ui.dshtavern.standalone'
+APP_NAME='DSH Tavern Gemini'
 case "$VARIANT" in
   '') ;;
   canary)
     SUFFIX='-canary'
-    APP_ID='io.github.flizzywine.dshtavern.standalone.canary'
+    APP_ID='io.github.hurt56631ui.dshtavern.standalone.canary'
     APP_NAME='DSH Tavern 测试版'
     ;;
   *) echo "TAVERN_APK_VARIANT 只能为空或 canary（当前：$VARIANT）" >&2; exit 1 ;;
