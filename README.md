@@ -266,3 +266,25 @@ curl -fsSL 'https://cdn.jsdelivr.net/gh/flizzywine/dsh-tavern@runtime-archive-ma
 除 Discord 外，本项目没有官方的 QQ 群、微信群或其他群聊。
 
 反馈故障时，可从对话顶部的“日志”下载执行记录；分享前请检查其中的对话和附件隐私。
+
+
+### 实验性：无密钥 Gemini Web（Fork 功能）
+
+本 Fork 提供从 RikkaHub 的 `GeminiWebProvider` 思路移植的 **匿名文本桥接器**。它不是 Google 官方 Gemini API；访问不保证成功，可能遇到 403、429 或 Google 修改网页协议。无登录、无 API Key、无 Cookie；上游实际模型身份无法保证，因此只使用自动路由，不伪造 Gemini 具体型号。
+
+需要 Node.js 22.19 或更高版本，在酒馆运行的**同一台电脑/Termux 运行环境**中启动：
+
+```sh
+node bin/gemini-web-bridge.mjs
+```
+
+启动后，在 DSH 的 **设置 → 模型** 中新增一个 OpenAI 兼容提供商（按宿主允许的 provider 类型选择）：
+
+- Base URL：`http://127.0.0.1:8766/v1`
+- 模型 ID：`gemini`（或者 `gemini-web-auto`）
+- API Key：桥接服务不需要密钥；如果宿主强制要求填写，可以填写本地占位符（不要填写真实账号密钥）
+- 测试：`http://127.0.0.1:8766/health` 仅表示本地桥接器运行，不表示谷歌请求成功。
+
+注意：这不是已完成的自动内置模型注册；当前需分别启动桥接器和配置 DSH 模型。Android APK 不会因为这个 Node 脚本自动具备该功能。桥接器只监听 127.0.0.1，不应直接暴露到公网；只支持文本，无法使用工具调用、图片或语音。用于单纯对话可能可行，但原版酒馆依赖工具的 Agent 流程无法保证兼容。
+
+针对代码贡献的定向回归测试：`node --test tests/gemini-web-anonymous.test.mjs`。
