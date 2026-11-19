@@ -200,6 +200,8 @@ export function createTavernGeminiAdapter({ client = createAnonymousGeminiWebCli
       return { mode: 'normal', maxRetries: 0, retryableCodes: ['RATE_LIMIT'],
         initialDelayMs: 500, maxDelayMs: 10000, jitterRatio: 0 }
     },
+    imageRequestPricing() { return undefined },
+    imageRequestTarget(_provider, _model, image) { return { width: image.width, height: image.height, maxBytes: image.bytes } },
     async listModels(provider) {
       return [{ provider, id: GEMINI_WEB_MODEL, name: 'Gemini（自动，实际型号未验证）',
         description: '无需 API Key，文本优先；Google 可限流或更改协议', inputModalities: ['text'] }]
