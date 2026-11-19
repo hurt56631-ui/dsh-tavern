@@ -198,7 +198,7 @@ export function createTavernGeminiAdapter({ client = createAnonymousGeminiWebCli
       // A timed-out anonymous POST may have already generated a reply upstream:
       // retrying it could duplicate a story turn and consume guest quota.
       return { mode: 'normal', maxRetries: 0, retryableCodes: ['RATE_LIMIT'],
-        initialDelayMs: 500, maxDelayMs: 10000, jitterRatio: 0 }
+        backoff: { initialDelayMs: 500, maxDelayMs: 10000, jitterRatio: 0 } }
     },
     imageRequestPricing() { return undefined },
     imageRequestTarget(_provider, _model, image) { return { width: image.width, height: image.height, maxBytes: image.bytes } },
