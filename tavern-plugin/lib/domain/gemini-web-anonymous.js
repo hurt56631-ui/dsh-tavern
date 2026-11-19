@@ -354,6 +354,7 @@ export function createGeminiWebHttpServer({ client = createAnonymousGeminiWebCli
     try {
       const input = await readRequestJson(req)
       if (!MODEL_ALIASES.has(input?.model)) throw new GeminiWebError('Use model gemini (Gemini Web automatic guest route)', 400)
+      if (Array.isArray(input.tools) && input.tools.length > 0) throw new GeminiWebError('Gemini Web guest route cannot invoke tools; disable tool calling for this model', 400)
       if (input.tool_choice === 'required') throw new GeminiWebError('Gemini Web guest route cannot invoke tools', 400)
       if (input.n != null && input.n !== 1) throw new GeminiWebError('Only one response is supported', 400)
       const messages = input.messages
