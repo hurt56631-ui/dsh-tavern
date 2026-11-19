@@ -37,7 +37,11 @@ if [ "$VARIANT" = canary ] && [ -z "${TAVERN_APK_VERSION_NAME:-}" ]; then
 fi
 VERSION=v0.2.0-rc2
 COMMIT=8362bba747fcf84c19e436c3dbb594a0fc388a67
-mkdir -p "$WORK"
+mkdir -p "$WORK" "$WORK/inputs"
+if [ "${TAVERN_APK_OFFLINE:-1}" = 0 ]; then
+  echo '独立 APK 构建目前要求首装离线快照；TAVERN_APK_OFFLINE=0 不受支持。' >&2
+  exit 1
+fi
 if [ ! -d "$WORK/dsha/.git" ]; then
   git clone --depth 1 --branch "$VERSION" https://github.com/DSH-APP/DSHA.git "$WORK/dsha"
 fi
