@@ -633,7 +633,8 @@ export async function apply(ctx) {
   // Do not replace or silently change any user's existing paid/local model.
   // The guest model's actual upstream version is unknown, not a fabricated model.
   try {
-    llm.registerAdapter([GEMINI_WEB_PROVIDER], createTavernGeminiAdapter())
+    const disposeGeminiAdapter = llm.registerAdapter([GEMINI_WEB_PROVIDER], createTavernGeminiAdapter())
+    ctx.effect(() => disposeGeminiAdapter)
   } catch (error) {
     console.warn('dsh-tavern: Gemini Web 模型注册失败（其他模型仍可用）:', error?.message || error)
   }
