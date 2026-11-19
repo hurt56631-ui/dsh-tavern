@@ -44,7 +44,7 @@ export function nativeGeminiMessages(options, toolInstructions = '') {
     const rendered = pieces.join('\n')
     if (role === 'tool') {
       messages.push({
-        role: 'tool',
+        role: 'user',
         content: JSON.stringify({
           call_id: message.toolCallId ?? message.source?.callId ?? null,
           is_error: message.isError === true,
@@ -192,10 +192,6 @@ async function* streamPlainText(client, messages, signal) {
 export function createTavernGeminiAdapter({ client = createAnonymousGeminiWebClient() } = {}) {
   const adapter = {
     providerInfo(provider) { return { id: provider, name: 'Gemini Web（免费网页·匿名）' } },
-    providerRetryPolicy() {
-      // An ambiguous timed-out POST must NOT be retried by DSH automatically.
-      return { maxAttempts: 1 }
-    },
     async listModels(provider) {
       return [{ provider, id: GEMINI_WEB_MODEL, name: 'Gemini（自动，实际型号未验证）',
         description: '无需 API Key，文本优先；Google 可限流或更改协议', inputModalities: ['text'] }]
