@@ -14,7 +14,7 @@ import zipfile
 COMMIT = '8362bba747fcf84c19e436c3dbb594a0fc388a67'
 APK_SHA256 = '1fedf883d431af658d89c28b86d85974cc1d11b74e0c5d46ef3d3cf8650b1961'
 # 与上游 v2.1 APK 并存：签名不同，无法覆盖安装，也不该让用户卸载旧包丢数据。
-APPLICATION_ID = 'io.github.flizzywine.dshtavern.standalone'
+APPLICATION_ID = 'io.github.hurt56631ui.dshtavern.standalone'
 # 同一酒馆版本的重新打包（例如只更新 APK 内置快照）也递增，避免和已发布的包同号。
 VERSION_CODE = 30300
 VERSION_NAME = '3.3.0'
@@ -174,8 +174,8 @@ def prepare(source, apk, destination, offline=None, application_id=APPLICATION_I
     if source_ref != 'main':
         # 测试版跟随自己的分支：内置快照与之后的压缩包更新都不能悄悄回到 main。
         for anchor, replacement in (
-            ('DEFAULT_TARBALL_URL="https://codeload.github.com/flizzywine/dsh-tavern/tar.gz/refs/heads/main"',
-             'DEFAULT_TARBALL_URL="https://codeload.github.com/flizzywine/dsh-tavern/tar.gz/refs/heads/'
+            ('DEFAULT_TARBALL_URL="https://codeload.github.com/hurt56631-ui/dsh-tavern/tar.gz/refs/heads/main"',
+             'DEFAULT_TARBALL_URL="https://codeload.github.com/hurt56631-ui/dsh-tavern/tar.gz/refs/heads/'
              + source_ref + '"'),
             ('BRANCH="${DSH_TAVERN_BRANCH:-main}"', 'BRANCH="${DSH_TAVERN_BRANCH:-' + source_ref + '}"'),
             # CDN 兜底读的是 @runtime-archive-main 清单（main 分支内容），测试版一旦
