@@ -270,23 +270,26 @@ curl -fsSL 'https://cdn.jsdelivr.net/gh/flizzywine/dsh-tavern@runtime-archive-ma
 反馈故障时，可从对话顶部的“日志”下载执行记录；分享前请检查其中的对话和附件隐私。
 
 
-### 实验性：无密钥 Gemini Web（Fork 功能）
+### 实验性：原生 Gemini Web 模型（Fork 功能）
 
-本 Fork 提供从 RikkaHub 的 `GeminiWebProvider` 思路移植的 **匿名文本桥接器**。它不是 Google 官方 Gemini API；访问不保证成功，可能遇到 403、429 或 Google 修改网页协议。无登录、无 API Key、无 Cookie；上游实际模型身份无法保证，因此只使用自动路由，不伪造 Gemini 具体型号。
+本 Fork 参考 RikkaHub 的匿名 `GeminiWebProvider`，将一个 **Gemini Web（免费网页·匿名）** 模型提供商注册进 DSH Tavern 的原生模型目录。它不是 Google 官方 Gemini API，不保证任何实际免费额度、模型版本或可用性；403、429 以及网页协议变更可能令调用失败。不发送登录 Cookie、API Key，且只提供匿名文本路由。
 
-需要 Node.js 22.19 或更高版本，在酒馆运行的**同一台电脑/Termux 运行环境**中启动：
+#### 直接在酒馆选模型
 
-```sh
-node bin/gemini-web-bridge.mjs
-```
+1. 正常安装或启动 DSH Tavern，在 **设置 → 模型** 或酒馆对话的模型选择器中找到 **Gemini Web（免费网页·匿名）**。
+2. 选择 **Gemini（自动，实际型号未验证）**（内部模型 ID 为 `gemini-web-auto`）。
+3. 导入人物卡和世界书，开始游戏；新功能不会偷偷覆盖已经选择的其他模型。
 
-启动后，在 DSH 的 **设置 → 模型** 中新增一个 OpenAI 兼容提供商（按宿主允许的 provider 类型选择）：
+已集成的适配器会使用原生 DSH 模型协议：系统设定、角色上下文、历史文字、流式回复；针对 Agent 声明的工具提供 **实验性 JSON 工具调用模拟**。这与 Google 原生 Function Calling 不同，模型可能输出无效 JSON、拒绝调用或错误调用，不能保证复杂工具型酒馆玩法正常。附件、图片、语音输入不支持。超过文本预算时会丢弃整段旧历史，尽量保留角色设定和最新一轮内容，但长期剧情仍需要酒馆既有的记忆/压缩机制。
 
-- Base URL：`http://127.0.0.1:8766/v1`
-- 模型 ID：`gemini`（或者 `gemini-web-auto`）
-- API Key：桥接服务不需要密钥；如果宿主强制要求填写，可以填写本地占位符（不要填写真实账号密钥）
-- 测试：`http://127.0.0.1:8766/health` 仅表示本地桥接器运行，不表示谷歌请求成功。
+#### Android APK（本 Fork）
 
-注意：这不是已完成的自动内置模型注册；当前需分别启动桥接器和配置 DSH 模型。Android APK 不会因为这个 Node 脚本自动具备该功能。桥接器只监听 127.0.0.1，不应直接暴露到公网；只支持文本，无法使用工具调用、图片或语音。用于单纯对话可能可行，但原版酒馆依赖工具的 Agent 流程无法保证兼容。
+- Android 构建入口仍是 `bash android/apk/build.sh`（Android 11+/ARM64，需要 Android SDK 37、JDK 17+ 等）。
+- 本 Fork 的 `android/setup.sh` 已切换到 `hurt56631-ui/dsh-tavern` 更新源；新包使用自己的包名 `io.github.hurt56631ui.dshtavern.standalone`，不覆盖官方 APK。
+- GitHub Actions 的 **Build DSH Tavern Gemini Android APK** 可手动运行，生成 Canary Debug APK 工件；这是测试包，不是已签名发布版。
+- APK 内部的 DSH Tavern 插件启动时直接注册 Gemini Web，不需要另开 `8766` 桥接进程或安装 RikkaHub。安装后仍需在模型选择器手动选一次 Gemini。
+- **尚未验证实机 APK 打包、Google 真实生成与完整 Agent 游戏回归；此处描述的是源码集成能力，不是可用性承诺。**
 
-针对代码贡献的定向回归测试：`node --test tests/gemini-web-anonymous.test.mjs`。
+#### 旧版独立桥接器（仅供手动服务端部署）
+
+仍可手动执行 `node bin/gemini-web-bridge.mjs`，在 `http://127.0.0.1:8766/v1` 提供 OpenAI 兼容接口（模型 `gemini`）。原生模型接入后无需再走这条路径。Bridge 仅监听本机回环地址，不应对公网暴露。模拟协议和原生接入测试：`node --test tests/gemini-web-anonymous.test.mjs tests/gemini-web-dsh-adapter.test.mjs`。
