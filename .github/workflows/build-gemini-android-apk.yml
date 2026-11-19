@@ -1,0 +1,57 @@
+name: Build DSH Tavern Gemini Android APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  debug-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK 37
+        run: |
+          sdkmanager --install 'platforms;android-37' 'build-tools;37.0.0'
+      - name: Confirm included source and tests
+        run: |
+          node --test tests/gemini-web-anonymous.test.mjs tests/gemini-web-dsh-adapter.test.mjs
+          bash -n android/apk/build.sh
+          bash -n android/setup.sh
+          python3 -m py_compile android/apk/prepare.py
+      - name: Build fork APK
+        env:
+          TAVERN_APK_VARIANT: canary
+          TAVERN_APK_MODE: Debug
+          TAVERN_APK_SOURCE_REF: ${{ github.ref_name }}
+          TAVERN_APK_OFFLINE: '1'
+        run: bash android/apk/build.sh
+      - name: Record APK information
+        if: success()
+        run: |
+          ls -lh output/android-apk-020/*apk*
+          sha256sum output/android-apk-020/dsh-tavern-android-debug-canary.apk
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: dsh-tavern-gemini-android-debug
+          path: |
+            output/android-apk-020/dsh-tavern-android-debug-canary.apk
+            output/android-apk-020/dsh-tavern-android-debug-canary.apk.sha256
+          if-no-files-found: error
+          retention-days: 14

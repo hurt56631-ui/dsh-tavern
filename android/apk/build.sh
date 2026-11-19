@@ -7,13 +7,13 @@ SOURCE_ROOT="${TAVERN_APK_SOURCE_ROOT:-$ROOT}"
 # 变体：空 = 正式版；canary = 测试版（独立包名、名称与版本号，可与正式版同时安装）。
 VARIANT="${TAVERN_APK_VARIANT:-}"
 SUFFIX=''
-APP_ID='io.github.flizzywine.dshtavern.standalone'
-APP_NAME='DSH Tavern'
+APP_ID='io.github.hurt56631ui.dshtavern.standalone'
+APP_NAME='DSH Tavern Gemini'
 case "$VARIANT" in
   '') ;;
   canary)
     SUFFIX='-canary'
-    APP_ID='io.github.flizzywine.dshtavern.standalone.canary'
+    APP_ID='io.github.hurt56631ui.dshtavern.standalone.canary'
     APP_NAME='DSH Tavern 测试版'
     ;;
   *) echo "TAVERN_APK_VARIANT 只能为空或 canary（当前：$VARIANT）" >&2; exit 1 ;;
@@ -37,7 +37,11 @@ if [ "$VARIANT" = canary ] && [ -z "${TAVERN_APK_VERSION_NAME:-}" ]; then
 fi
 VERSION=v0.2.0-rc2
 COMMIT=8362bba747fcf84c19e436c3dbb594a0fc388a67
-mkdir -p "$WORK"
+mkdir -p "$WORK" "$WORK/inputs"
+if [ "${TAVERN_APK_OFFLINE:-1}" = 0 ]; then
+  echo '独立 APK 构建目前要求首装离线快照；TAVERN_APK_OFFLINE=0 不受支持。' >&2
+  exit 1
+fi
 if [ ! -d "$WORK/dsha/.git" ]; then
   git clone --depth 1 --branch "$VERSION" https://github.com/DSH-APP/DSHA.git "$WORK/dsha"
 fi

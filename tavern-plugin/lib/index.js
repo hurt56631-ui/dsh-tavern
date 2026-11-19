@@ -189,6 +189,7 @@ import { createConversationInitialization } from './domain/conversation-initiali
 import { assertConversationForkable, conversationForkReceipt, forkConversationChat } from './domain/conversation-fork.js'
 import { readBackgroundModelReasoning } from './domain/background-model-selection.js'
 import { createModelCalls } from './domain/model-calls.js'
+import { createTavernGeminiAdapter, GEMINI_WEB_PROVIDER } from './domain/gemini-web-dsh-adapter.js'
 import { createPlayCardSnapshots } from './domain/play-card-snapshots.js'
 import { createUserPreferenceProfile } from './domain/user-preference-profile.js'
 import { createContextPlanner } from './domain/context-planner.js'
@@ -628,6 +629,16 @@ export async function apply(ctx) {
     console.error('dsh-tavern: 缺少 llm、agents 或 sessions 服务')
     return
   }
+  // The anonymous text provider is discovered by the normal DSH model picker.
+  // Do not replace or silently change any user's existing paid/local model.
+  // The guest model's actual upstream version is unknown, not a fabricated model.
+  try {
+    const disposeGeminiAdapter = llm.registerAdapter([GEMINI_WEB_PROVIDER], createTavernGeminiAdapter())
+    ctx.effect(() => disposeGeminiAdapter)
+  } catch (error) {
+    console.warn('dsh-tavern: Gemini Web 模型注册失败（其他模型仍可用）:', error?.message || error)
+  }
+
   // Surface rewrites that happen between rounds need the live Agent to publish
   // their edit turn as used (V4 numbers the next turn from phase.lastTurn).
   setAgentResolver(sessionId => agentRegistry.get(String(sessionId || '')))

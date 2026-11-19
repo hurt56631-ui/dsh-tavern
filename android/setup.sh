@@ -3,15 +3,15 @@ set -euo pipefail
 
 DSH_ROOT="${DSH_HOME:-${HOME}/.dsh}"
 APP_DIR="${DSH_TAVERN_SOURCE_ROOT:-${DSH_TAVERN_ANDROID_APP_DIR:-${DSH_ROOT}/apps/dsh-tavern}}"
-DEFAULT_REPOSITORY="https://github.com/flizzywine/dsh-tavern.git"
+DEFAULT_REPOSITORY="https://github.com/hurt56631-ui/dsh-tavern.git"
 REPOSITORY="${DSH_TAVERN_REPOSITORY:-${DEFAULT_REPOSITORY}}"
 # Follows the main branch, same as install.sh.
 BRANCH="${DSH_TAVERN_BRANCH:-main}"
-DEFAULT_TARBALL_URL="https://codeload.github.com/flizzywine/dsh-tavern/tar.gz/refs/heads/main"
+DEFAULT_TARBALL_URL="https://codeload.github.com/hurt56631-ui/dsh-tavern/tar.gz/refs/heads/main"
 TARBALL_URL="${DSH_TAVERN_TARBALL_URL:-${DEFAULT_TARBALL_URL}}"
 # 运行清单与 CDN 源：优先使用校验过的整包，清单支持时也可按文件增量下载。
-CDN_METADATA_URL="${DSH_TAVERN_CDN_METADATA_URL:-https://cdn.jsdelivr.net/gh/flizzywine/dsh-tavern@runtime-archive-main/dsh-tavern-runtime.json}"
-CDN_ROOT_URL="${DSH_TAVERN_CDN_ROOT_URL:-https://cdn.jsdelivr.net/gh/flizzywine/dsh-tavern}"
+CDN_METADATA_URL="${DSH_TAVERN_CDN_METADATA_URL:-https://cdn.jsdelivr.net/gh/hurt56631-ui/dsh-tavern@runtime-archive-main/dsh-tavern-runtime.json}"
+CDN_ROOT_URL="${DSH_TAVERN_CDN_ROOT_URL:-https://cdn.jsdelivr.net/gh/hurt56631-ui/dsh-tavern}"
 SOURCE_CDN="${DSH_TAVERN_SOURCE_CDN:-1}"
 SOURCE_MARKER=".dsh-tavern-tarball-source"
 OFFLINE_TARBALL="/root/tavern-offline.tar"

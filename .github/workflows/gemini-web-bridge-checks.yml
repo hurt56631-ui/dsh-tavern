@@ -6,6 +6,12 @@ on:
       - 'tavern-plugin/lib/domain/gemini-web-anonymous.js'
       - 'bin/gemini-web-bridge.mjs'
       - 'tests/gemini-web-anonymous.test.mjs'
+      - 'tavern-plugin/lib/domain/gemini-web-dsh-adapter.js'
+      - 'tests/gemini-web-dsh-adapter.test.mjs'
+      - 'android/apk/build.sh'
+      - 'android/apk/prepare.py'
+      - 'android/setup.sh'
+      - 'tavern-plugin/lib/index.js'
       - '.github/workflows/gemini-web-bridge-checks.yml'
   push:
     branches: [main]
@@ -13,6 +19,12 @@ on:
       - 'tavern-plugin/lib/domain/gemini-web-anonymous.js'
       - 'bin/gemini-web-bridge.mjs'
       - 'tests/gemini-web-anonymous.test.mjs'
+      - 'tavern-plugin/lib/domain/gemini-web-dsh-adapter.js'
+      - 'tests/gemini-web-dsh-adapter.test.mjs'
+      - 'android/apk/build.sh'
+      - 'android/apk/prepare.py'
+      - 'android/setup.sh'
+      - 'tavern-plugin/lib/index.js'
       - '.github/workflows/gemini-web-bridge-checks.yml'
 
 jobs:
@@ -29,5 +41,10 @@ jobs:
           node --check tavern-plugin/lib/domain/gemini-web-anonymous.js
           node --check bin/gemini-web-bridge.mjs
           node --check tests/gemini-web-anonymous.test.mjs
+          node --check tavern-plugin/lib/domain/gemini-web-dsh-adapter.js
+          node --check tests/gemini-web-dsh-adapter.test.mjs
+          bash -n android/setup.sh
+          bash -n android/apk/build.sh
+          python3 -m py_compile android/apk/prepare.py
       - name: Isolated mocked protocol tests
-        run: node --test tests/gemini-web-anonymous.test.mjs
+        run: node --test tests/gemini-web-anonymous.test.mjs tests/gemini-web-dsh-adapter.test.mjs
