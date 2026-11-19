@@ -1,0 +1,33 @@
+name: Gemini Web bridge checks
+
+on:
+  pull_request:
+    paths:
+      - 'tavern-plugin/lib/domain/gemini-web-anonymous.js'
+      - 'bin/gemini-web-bridge.mjs'
+      - 'tests/gemini-web-anonymous.test.mjs'
+      - '.github/workflows/gemini-web-bridge-checks.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tavern-plugin/lib/domain/gemini-web-anonymous.js'
+      - 'bin/gemini-web-bridge.mjs'
+      - 'tests/gemini-web-anonymous.test.mjs'
+      - '.github/workflows/gemini-web-bridge-checks.yml'
+
+jobs:
+  protocol-and-loopback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          node --check tavern-plugin/lib/domain/gemini-web-anonymous.js
+          node --check bin/gemini-web-bridge.mjs
+          node --check tests/gemini-web-anonymous.test.mjs
+      - name: Isolated mocked protocol tests
+        run: node --test tests/gemini-web-anonymous.test.mjs
