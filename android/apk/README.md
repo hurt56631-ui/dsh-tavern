@@ -6,7 +6,7 @@ APK 内置 DSHA v0.2.0-rc2 的 Ubuntu、Node 和 DSH 0.2.0-rc.2 运行环境。�
 用户无需输入命令。安装成功才写入完成标记，失败可点击启动重试；日志保存在容器的
 `/root/.dsh/logs/tavern-install.log`。
 
-包名为 `io.github.flizzywine.dshtavern.standalone`，与上游 v2.1 APK（DSH 0.1.5）及原版 DSHA
+本 Fork 的包名为 `io.github.hurt56631ui.dshtavern.standalone`，与上游 v2.1 APK（DSH 0.1.5）及原版 DSHA
 可同时安装，数据彼此独立。它**不能覆盖升级 v2.1**：两者签名不同。切换时先在旧包导出存档与
 人物卡，再按 [数据导入](../docs/data-import.md) 导入。现阶段只构建标准版，要求 Android 11+、
 ARM64。Tavern 的源码更新继续由酒馆管理，安装更新后返回原生界面重启即可。独立 APK 禁用 DSHA
@@ -78,3 +78,9 @@ E7E3 发布证书，因此 Release 先产出未签名包，再由构建脚本用
 
 DSHA 来源：<https://github.com/DSH-APP/DSHA>，MIT 授权。
 锁定提交、官方 APK 摘要见 `prepare.py`，许可证随 APK 一起打包。
+
+## Gemini Web Fork 测试版
+
+本 Fork 在 Tavern 插件启动期间注册 `gemini-web / gemini-web-auto`，用户可在酒馆模型菜单手动选择 **Gemini Web（免费网页·匿名）**。无须单独启动 Node 桥接服务、登录 Google 或填写 API Key，但实际调用依赖 Google 不保证稳定的匿名网页协议；支持文本和实验性工具 JSON 模拟，不支持直接的图片/音频输入。当前只完成源码集成和模拟测试，真机玩法尚未验证。
+
+可以从 GitHub Actions 的 `Build DSH Tavern Gemini Android APK` 手动构建 Canary Debug APK。构建会使用本 Fork 的源码与更新地址，产出 APK Artifact；**Debug 签名用于测试，不得视为正式发布签名**。完整 Release 仍需独立长期密钥与实机验收。
