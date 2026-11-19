@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "cdfa5531f445698266ba20b54a1a304f96e48147",
-  "releaseSequence": 2,
+  "revision": "909ac70aac70a9ebf7be2449a37d578634405bd7",
+  "releaseSequence": 3,
   "version": "3.3.0",
   "files": [
     {
@@ -16,18 +16,18 @@
     },
     {
       "path": "android/apk/build.sh",
-      "sha256": "137504dc7436da62d410430705d3ca4089bfbaa690500514821eaec216a8f5bb",
-      "size": 6646
+      "sha256": "862101ca6ae85b44c6909d4cd16ba5001dd2a6e5b1df2395b95bb528d9ae38b1",
+      "size": 6826
     },
     {
       "path": "android/apk/prepare.py",
-      "sha256": "dfe6168d4e9eda126795ab48cb5203c608ca05c519a3230a973545b9f8e08f51",
-      "size": 22663
+      "sha256": "fcee1ce1c2568721a35a1a60a830e39512d9aef083efbf65a2835cee646673a1",
+      "size": 22668
     },
     {
       "path": "android/apk/README.md",
-      "sha256": "9b3e3b23b64a78fa633b91c6c125cc03b4dcb5394725147e74ff76b32bac987a",
-      "size": 5356
+      "sha256": "cbe5b2a1534f0336493780e7f1816dbe1cea8131b9736e3460416c5cf42102f1",
+      "size": 6158
     },
     {
       "path": "android/apk/render-tavern-profile.mjs",
@@ -91,8 +91,8 @@
     },
     {
       "path": "android/setup.sh",
-      "sha256": "2ed1f257ad210f8e6279fb671a28cf11401b661e8dcfeb3f8ee094b4d71d122a",
-      "size": 20604
+      "sha256": "e91f35e016f8b190dd0add3eec9ca5cfcf5ecde9a6258249fd5f9c62f7c87d5d",
+      "size": 20612
     },
     {
       "path": "android/update.sh",
@@ -2058,6 +2058,11 @@
       "path": "tavern-plugin/lib/domain/gemini-web-anonymous.js",
       "sha256": "9a0c12445a4a500de348c6d0b6d1e734bdb40622ea3d364892392752daa83966",
       "size": 18189
+    },
+    {
+      "path": "tavern-plugin/lib/domain/gemini-web-dsh-adapter.js",
+      "sha256": "074286952444724caba49ad9743203b659cf761bc62d90edcd5db0e2602a439b",
+      "size": 10746
     },
     {
       "path": "tavern-plugin/lib/domain/generation-stream-mode-boot-patch.js",
@@ -4181,8 +4186,8 @@
     },
     {
       "path": "tavern-plugin/lib/index.js",
-      "sha256": "3f5d7136caf413189ed4ee556b9a50930a6ff571ab07ac38662c0ca5cc97d14b",
-      "size": 326419
+      "sha256": "54987b0fc2fbe3d7da4e2749f1d8de3c66bf30a1fa3f38f5563d3c63ccb3de10",
+      "size": 327054
     },
     {
       "path": "tavern-plugin/lib/metadata-backup.js",
@@ -9241,8 +9246,8 @@
     },
     {
       "path": "tavern-plugin/packages/dsh-tavern/README.md",
-      "sha256": "ccacebd1a435df7e3ba611a13bbf839700ae3e8f172f8261afb0c90fa9c7c1d5",
-      "size": 22314
+      "sha256": "f6cefc736aee687acfff360d6ab8191ad2221d7b0035ab6030724f1324e064cb",
+      "size": 23446
     },
     {
       "path": "tavern-plugin/pnpm-lock.yaml",
@@ -9616,9 +9621,9 @@
     }
   ],
   "archive": {
-    "commit": "490849719c209644afe1372b32cbd899d675eb1a",
+    "commit": "36a595dee8a3a8ddd4cb1f5fb715beb0e1c0e40f",
     "path": "runtime.zip",
-    "sha256": "bdb16654ce21d1e194d47d9df24d6f1716eec0345c76ca1e253b146b8a5822b3",
-    "size": 17008084
+    "sha256": "49ca9e61ede4896cf76954b54dcbecee64dcd67468c736fd9c545f546cb3b562",
+    "size": 17013638
   }
 }
