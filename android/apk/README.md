@@ -1,7 +1,7 @@
 # 独立 Android APK
 
 APK 内置 DSHA v0.2.0-rc2 的 Ubuntu、Node 和 DSH 0.2.0-rc.2 运行环境。首次启动通过联网下载
-`flizzywine/dsh-tavern` 的 `main`，执行仓库中的 Android 安装器；安装完成后原生层固定启动
+`hurt56631-ui/dsh-tavern` 的 `main`，执行仓库中的 Android 安装器；安装完成后原生层固定启动
 `tavern` profile（端口 3080），不再拉起 DSHA 的 `web` profile，所以手机上只有一个 DSH 服务。
 用户无需输入命令。安装成功才写入完成标记，失败可点击启动重试；日志保存在容器的
 `/root/.dsh/logs/tavern-install.log`。
@@ -42,7 +42,7 @@ pnpm 运行时。它作为 `assets/tavern-offline.bin` 打进 APK，首装时只
 - 采集结束会做一次「空目录 `--offline` 安装」自检，依赖不全直接失败，不会产出坏包。
 - 依赖全是纯 JS/wasm（锁文件里唯一平台限定包是 darwin 的 `fsevents`），x64 构建机采的
   store 可直接给 arm64 手机用。
-- `TAVERN_APK_OFFLINE=0` 可关掉，恢复到联网首装；`TAVERN_OFFLINE_PKG` 可指定已有包。
+- 本 Fork 的独立 APK 必须携带首装离线包（目前不支持 `TAVERN_APK_OFFLINE=0`）；`TAVERN_OFFLINE_PKG` 可指定已有且与当前提交匹配的包。
 
 首装逻辑在 `android/setup.sh`（选源码）与 `android/install.sh`（装依赖）：内置包命中时先走
 `--offline`，缺包再联网补齐；源码快照没有被 Git 跟踪的历史，因此写 tarball 标记。
