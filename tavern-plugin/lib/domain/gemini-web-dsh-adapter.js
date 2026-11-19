@@ -163,12 +163,14 @@ async function* streamPlainText(client, messages, signal) {
     notify()
   }
   const request = client.generate(messages, { signal: combined, onSnapshot: accept })
-    .then(text => accept(text), error => { failure = error })
+    .then(text => { if (text !== emitted) accept(text) })
+    .catch(error => { failure = error })
     .finally(() => { done = true; notify() })
   let started = false
   try {
     while (!done || pending.length) {
       if (!pending.length) {
+        if (done) break
         await new Promise(resolve => { awake = resolve })
         continue
       }
