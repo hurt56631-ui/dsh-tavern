@@ -50,7 +50,7 @@ export function geminiWebPrompt(messages) {
   if (!Array.isArray(messages) || messages.length === 0) throw new GeminiWebError('messages must be a nonempty array', 400)
   const turns = messages.map(message => {
     const role = message?.role
-    if (!['system', 'developer', 'user', 'assistant', 'tool'].includes(role)) {
+    if (!['system', 'developer', 'user', 'assistant'].includes(role)) {
       throw new GeminiWebError('Unsupported chat role', 400)
     }
     return { role, content: textContent(message.content).trim() }
@@ -176,7 +176,7 @@ async function readSnapshots(response, signal, onSnapshot) {
     signal?.throwIfAborted()
     pending += decoder.decode(chunk, { stream: true })
     received += chunk.byteLength
-    if (received > MAX_RESPONSE_CHARS * 4 || pending.length > MAX_FRAME_CHARS) {
+    if (received > MAX_RESPONSE_CHARS * 4) {
       throw new GeminiWebError('Gemini Web response exceeded the safety limit')
     }
     let at
@@ -213,17 +213,13 @@ export function createAnonymousGeminiWebClient({
     return new GeminiWebError('Gemini Web guest access was limited or redirected; retry later', 429, delay)
   }
   async function request(url, options, signal, duration) {
-    const controller = new AbortController()
-    const onAbort = () => controller.abort(signal?.reason)
-    if (signal?.aborted) onAbort()
-    else signal?.addEventListener('abort', onAbort, { once: true })
-    const timeout = setTimeout(() => controller.abort(new Error('Gemini Web request timed out')), duration)
-    try {
-      return await fetchImpl(url, { ...options, signal: controller.signal, redirect: 'manual' })
-    } finally {
-      clearTimeout(timeout)
-      signal?.removeEventListener('abort', onAbort)
-    }
+    // Keep the timeout and caller cancellation alive while the response BODY
+    // is being read, not just until fetch() returns the response headers.
+    // AbortSignal.timeout uses monotonic active time on Node 22+.
+    const requestSignal = signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(duration)])
+      : AbortSignal.timeout(duration)
+    return fetchImpl(url, { ...options, signal: requestSignal, redirect: 'manual' })
   }
   async function label(force, signal) {
     checkCooldown()
