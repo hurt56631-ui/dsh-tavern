@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "revision": "4ed5d02eaeff5f9cdf255c6a3ef7e44628e8dd62",
-  "releaseSequence": 1,
+  "revision": "cdfa5531f445698266ba20b54a1a304f96e48147",
+  "releaseSequence": 2,
   "version": "3.3.0",
   "files": [
     {
@@ -243,6 +243,11 @@
       "path": "bin/eval-compaction-memory.mjs",
       "sha256": "edc4b16dad5c6b573595a5001b6a79523620aa7742c174d70a125039b34e681b",
       "size": 11476
+    },
+    {
+      "path": "bin/gemini-web-bridge.mjs",
+      "sha256": "3177b812fcd8dce3d43e5a75a6758e1b8bdeaacb0c365406dc88e1f9798da6db",
+      "size": 866
     },
     {
       "path": "bin/import-user-home.mjs",
@@ -2048,6 +2053,11 @@
       "path": "tavern-plugin/lib/domain/gameplay-settled-turn.js",
       "sha256": "4b9c818fa5056ad851b3e3cee8bf8037aa6b64b0096fb11382ff3343f98228ac",
       "size": 865
+    },
+    {
+      "path": "tavern-plugin/lib/domain/gemini-web-anonymous.js",
+      "sha256": "9a0c12445a4a500de348c6d0b6d1e734bdb40622ea3d364892392752daa83966",
+      "size": 18189
     },
     {
       "path": "tavern-plugin/lib/domain/generation-stream-mode-boot-patch.js",
@@ -9231,8 +9241,8 @@
     },
     {
       "path": "tavern-plugin/packages/dsh-tavern/README.md",
-      "sha256": "00da866bd96c2f73dbaa71f49c51a38bbb3bffffc8ed879c29d77e8bbebaff47",
-      "size": 20783
+      "sha256": "ccacebd1a435df7e3ba611a13bbf839700ae3e8f172f8261afb0c90fa9c7c1d5",
+      "size": 22314
     },
     {
       "path": "tavern-plugin/pnpm-lock.yaml",
@@ -9606,9 +9616,9 @@
     }
   ],
   "archive": {
-    "commit": "d7197a8f17ef2d0ef7ade441d900eab275a7d681",
+    "commit": "490849719c209644afe1372b32cbd899d675eb1a",
     "path": "runtime.zip",
-    "sha256": "0344055c569f8ed6be17aac8a2831a9c405bf8e3c1eb711680afaa708cf945d3",
-    "size": 17000265
+    "sha256": "bdb16654ce21d1e194d47d9df24d6f1716eec0345c76ca1e253b146b8a5822b3",
+    "size": 17008084
   }
 }
